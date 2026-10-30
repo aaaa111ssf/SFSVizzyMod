@@ -11,3 +11,5 @@ tools/cdp-prof*/
 tools/cdp-prof-*/
 tools/__pycache__/
 .vs/
+
+tools/
