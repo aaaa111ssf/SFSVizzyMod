@@ -1,0 +1,13 @@
+bin/
+obj/
+dist/
+*.user
+*.log
+*.png
+*.db
+*.db-*
+build_check.js
+tools/cdp-prof*/
+tools/cdp-prof-*/
+tools/__pycache__/
+.vs/

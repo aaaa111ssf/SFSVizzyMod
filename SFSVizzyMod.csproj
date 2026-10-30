@@ -1,0 +1,97 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9</LangVersion>
+    <AssemblyName>SFSVizzyMod</AssemblyName>
+    <RootNamespace>SFSVizzyMod</RootNamespace>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Product>SFS Vizzy</Product>
+    <Company>SFSVizzyMod</Company>
+    <Description>Vizzy-style visual block programming for Spaceflight Simulator (PC, 1.6).</Description>
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS0436;CS0618</NoWarn>
+    <!-- Assembly-CSharp 自己引用的 System.Net.Http 版本不一致，与我们的代码无关 -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+    <OutputPath>bin\</OutputPath>
+  </PropertyGroup>
+
+  <!-- 用 -p:GameManagedDir=... 可切换到其它 SFS 版本的 Managed 目录 -->
+  <PropertyGroup Condition="'$(GameManagedDir)' == ''">
+    <GameManagedDir>D:\sfs\Spaceflight Simulator_Data\Managed</GameManagedDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" />
+    <EmbeddedResource Include="web\index.html">
+      <LogicalName>SFSVizzyMod.web.index.html</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameManagedDir)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- FileLocations / IFile / IFolder / JsonWrapper 都在 firstpass 里，必须引 -->
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>$(GameManagedDir)\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(GameManagedDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(GameManagedDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(GameManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.Physics2DModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(GameManagedDir)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="ReportMissingRefs" BeforeTargets="ResolveAssemblyReferences">
+    <Warning Condition="!Exists('$(GameManagedDir)\Assembly-CSharp.dll')"
+             Text="找不到 SFS 参考程序集：$(GameManagedDir)。请用 -p:GameManagedDir=... 指定正确的 Managed 目录。" />
+    <Warning Condition="!Exists('$(GameManagedDir)\Assembly-CSharp-firstpass.dll')"
+             Text="找不到 Assembly-CSharp-firstpass.dll（$(GameManagedDir)）：FileLocations 等类型会编译失败。" />
+  </Target>
+
+</Project>

@@ -1,0 +1,55 @@
+# ===== SFS Vizzy 着陆示例（月球/无大气优先）=====
+# 用法：进入下降段后 RUN。确保发动机已点火、RCS 有燃料。
+# 有大气：先加降落伞积木，等速度降下来再运行本程序。
+# 注意：参数必须写在 on start 里（写在外面会被当成另一个并行入口）。
+
+on start
+  # ---- 可调参数 ----
+  set vtouch = 1.2       # 触地目标速度 m/s
+  set profile = 0.55     # 下降速度曲线：0.4 保守 / 0.7 激进
+  set gain = 0.06        # 油门比例增益：抖就调小，迟钝就调大
+  set maxdesc = 60       # 最大下降率 m/s
+
+  rcs on
+  throttle on
+
+  # 0) 推力检查
+  wait 0.3
+  if MaxTWR < 1.05
+    fail "MaxTWR < 1.05: thrust too low to land"
+  end
+
+  # 1) 消水平速度：朝速度反向点火
+  if HorizontalSpeed > 3
+    turn to retrograde in 2
+    set throttle to 1
+    while HorizontalSpeed > 3
+      wait 0.2
+    end
+  end
+
+  # 2) 垂直下降：目标下降率由“剩余高度 + 可用减速度”推出，再用比例油门跟踪
+  turn to up in 2
+  while AltitudeAGL > 1.5
+    set amax = max(0.5, MaxTWR * 9.8)                 # 最大可用加速度 m/s^2
+    set v = 0 - VerticalSpeed                         # 下降为正
+    set h = max(AltitudeAGL, 0.5)
+
+    # 保守曲线：按 0.55 倍“恰好停住”的速度下降
+    set vt = clamp(sqrt(2 * max(0.5, amax - Gravity) * h) * profile, vtouch, maxdesc)
+
+    # 最后 5 m 强制慢速，保证轻触地
+    if h < 5
+      set vt = vtouch
+    end
+
+    # 悬浮油门 + 速度误差修正
+    set throttle to clamp(Gravity / amax + (v - vt) * gain, 0, 1)
+    wait 0.1
+  end
+
+  # 3) 触地
+  throttle off
+  rcs off
+  log "Touchdown: {VerticalSpeed} m/s at {AltitudeAGL} m AGL"
+end

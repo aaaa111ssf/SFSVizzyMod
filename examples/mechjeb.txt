@@ -1,0 +1,154 @@
+# ===== SFS Vizzy MechJeb-style autopilot (script version, experimental) =====
+# 用法：把 mode 改成 1-5，再点 RUN。SFS 没有可编程部件/输入框，所以“输入数字”= 改这里的 mode。
+# 参数都在 on start 里，改完 APPLY/RUN。
+# 注意：block 语言拿不到“地图目标点角度”，所以 5 只能落在当前正下方。
+
+on start
+  set mode = 2            # 1 launch / 2 circularize / 3 apsides / 4 land / 5 fast land
+  set targetAp = 100000   # mode 1,3 用：目标远拱点高度（米）
+  set targetPe = 100000   # mode 3 用：目标近拱点高度（米，0=不改）
+  set margin = 0.55       # 下降速度曲线，0.4 保守 / 0.7 激进
+
+  # ---------------- 1 自动发射（2D 无倾角，用目标轨道高度代替） ----------------
+  if mode == 1
+    throttle on
+    set throttle to 1
+    wait until AltitudeAGL > 400
+    while Apoapsis < targetAp
+      set frac = clamp((AltitudeAGL - 400) / max(2000, targetAp * 0.7), 0, 1)
+      turn to (88 * frac ^ 0.8) in 0.3
+      set throttle to clamp(1.8 / max(0.1, MaxTWR), 0.35, 1)
+      wait 0.2
+    end
+    throttle off
+    rcs on
+    while abs(Apoapsis - Periapsis) > 2000
+      wait until abs(VerticalSpeed) < 3
+      if Altitude > (Apoapsis + Periapsis) / 2
+        turn to prograde in 1
+      else
+        turn to retrograde in 1
+      end
+      set throttle to 0.8
+      wait 2
+      throttle off
+      wait 20
+    end
+    log "Launch done: Ap {Apoapsis} / Pe {Periapsis}"
+  end
+
+  # ---------------- 2 圆化轨道 ----------------
+  if mode == 2
+    rcs on
+    while abs(Apoapsis - Periapsis) > 2000
+      wait until abs(VerticalSpeed) < 3
+      if Altitude > (Apoapsis + Periapsis) / 2
+        turn to prograde in 1
+      else
+        turn to retrograde in 1
+      end
+      set throttle to 0.8
+      wait 2
+      throttle off
+      wait 20
+    end
+    log "Circular: Ap {Apoapsis} / Pe {Periapsis}"
+  end
+
+  # ---------------- 3 改变拱点 ----------------
+  if mode == 3
+    rcs on
+    if targetAp > 0
+      set tries = 0
+      while abs(Apoapsis - targetAp) > 3000 and tries < 12
+        wait until abs(VerticalSpeed) < 3
+        if Altitude < (Apoapsis + Periapsis) / 2
+          if targetAp > Apoapsis
+            turn to prograde in 1
+          else
+            turn to retrograde in 1
+          end
+          set throttle to 0.9
+          wait 2
+          throttle off
+        end
+        set tries = tries + 1
+        wait 20
+      end
+    end
+    if targetPe > 0
+      set tries = 0
+      while abs(Periapsis - targetPe) > 3000 and tries < 12
+        wait until abs(VerticalSpeed) < 3
+        if Altitude > (Apoapsis + Periapsis) / 2
+          if targetPe > Periapsis
+            turn to prograde in 1
+          else
+            turn to retrograde in 1
+          end
+          set throttle to 0.9
+          wait 2
+          throttle off
+        end
+        set tries = tries + 1
+        wait 20
+      end
+    end
+    log "Apsides done: Ap {Apoapsis} / Pe {Periapsis}"
+  end
+
+  # ---------------- 4 自动降落（非定点） ----------------
+  if mode == 4
+    rcs on
+    throttle on
+    if HorizontalSpeed > 3
+      turn to retrograde in 2
+      set throttle to 1
+      while HorizontalSpeed > 3
+        wait 0.2
+      end
+    end
+    turn to up in 2
+    while AltitudeAGL > 1.5
+      set amax = max(0.5, MaxTWR * 9.8)
+      set v = 0 - VerticalSpeed
+      set h = max(AltitudeAGL, 0.5)
+      set vt = clamp(sqrt(2 * max(0.5, amax - Gravity) * h) * margin, 1.2, 60)
+      if h < 5
+        set vt = 1.0
+      end
+      set throttle to clamp(Gravity / amax + (v - vt) * 0.06, 0, 1)
+      wait 0.1
+    end
+    throttle off
+    log "Touchdown: {VerticalSpeed} m/s"
+  end
+
+  # ---------------- 5 快速降落（当前正下方） ----------------
+  if mode == 5
+    rcs on
+    turn to retrograde in 1
+    set throttle to 1
+    wait until AltitudeAGL < 25000
+    turn to up in 1
+    while AltitudeAGL > 1.5
+      set amax = max(0.5, MaxTWR * 9.8)
+      set v = 0 - VerticalSpeed
+      set h = max(AltitudeAGL, 0.5)
+      set vt = clamp(sqrt(2 * max(0.5, amax - Gravity) * h) * 0.9, 1.0, 90)
+      if h < 5
+        set vt = 1.0
+      end
+      set throttle to clamp(Gravity / amax + (v - vt) * 0.08, 0, 1)
+      wait 0.1
+    end
+    throttle off
+    log "Fast touchdown: {VerticalSpeed} m/s"
+  end
+
+  # ---------------- 0 什么都不做 ----------------
+  if mode == 0
+    throttle off
+    log "mode 0: nothing to do"
+  end
+end

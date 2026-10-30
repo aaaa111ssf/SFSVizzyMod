@@ -1,0 +1,233 @@
+SFS Vizzy 模块速查（SFSVizzyMod）
+=====================================
+编辑器：游戏内按 F8 打开浏览器；积木与代码一一对应，随时切换。
+放置：单击左侧积木=追加到最后一个 ON START；拖拽=放到任意空隙。
+
+一、事件（画布最上方，可多个）
+-------------------------------------
+ON START（多个并行执行）
+  作用：程序入口。可以有多个，互不阻塞，同时运行。
+  代码：
+    on start
+      wait 1
+      log "hello"
+    end
+  备注：每段独立容器；删除按钮 x 只删该段。
+
+ON KEY "K"（按键触发）
+  作用：程序运行中按下 K 时执行一次（键名用 KeyCode，如 Space、F、K）。
+  代码：on key "K" … end
+  备注：别用 R/P/F8 这些游戏快捷键，会被同时响应。
+
+ON STAGE（分级触发）
+  作用：分级数量减少时执行（手动点分级或程序 stage 都算）。
+  代码：on stage … end
+
+ON LANDED（着陆触发）
+  作用：从空中变为着陆状态时执行一次。
+  代码：on landed … end
+
+ON DOCK（对接触发）
+  作用：任一对接口从空闲变占用时执行。
+  代码：on dock … end
+
+ON ALTITUDE（高度触发）
+  作用：运行期间每帧采样高度，条件从“假”变“真”的瞬间执行一次。
+  积木：ON ALTITUDE [AGL/ASL] [>=] [5000] m  [once]
+  代码：
+    on altitude agl >= 5000 once
+      log "5 km AGL: {AltitudeAGL} m"
+    end
+  参数：
+    AGL = 真实离地高度（按行星极坐标径向地形计算，水面算地面，与游戏 HUD 同口径）
+    ASL = 海拔（相对参考半径）
+    once 勾选 = 只触发一次；取消 = 离开阈值 2 m 后重新武装，可再次触发
+  备注：所有 ON START 结束后若还有未触发的事件，程序保持 RUNNING 等待。
+
+二、飞行控制
+-------------------------------------
+wait（等待）
+  作用：等待 N 秒，用游戏时间，时间加速会一起推进。
+  积木：wait [1] sec
+  代码：wait 1
+
+wait until（等到条件成立）
+  作用：每帧检查，条件为真才继续往下走。
+  积木：wait until [AltitudeAGL] [>] [10000]
+  代码：wait until AltitudeAGL > 10000
+
+set throttle to（设油门）
+  作用：设定油门 0..1；大于 0 会自动打开油门。
+  积木：set throttle to [0.8]
+  代码：set throttle to 0.8
+  例：  set throttle to Throttle - 0.05
+
+throttle on / throttle off（油门开/关）
+  代码：throttle on
+        throttle off
+
+rcs on / rcs off（RCS 开/关）
+  代码：rcs on
+        rcs off
+
+turn（相对天顶左/右转）
+  作用：以 90° 垂直上升（当地天顶）为基准转向，到位后才执行下一条。
+  积木：turn [left/right] by [15] deg  [   ] sec (可选)
+  代码：turn left 15          立即转到天顶左 15°
+        turn right 10 in 2     用 2 秒匀速右转 10°
+        turn rel 20            相对当前机头（旧行为）
+  备注：left = 逆时针（屏幕左），right = 顺时针（屏幕右）；
+        姿态直控，不依赖 RCS/万向节；时间加速时会等待恢复实时物理。
+
+turn to（转到绝对姿态）
+  积木：turn to [deg/up/down/prograde/retrograde] [0] [   ] sec
+  代码：turn to up              天顶（垂直上升）
+        turn to down            指向地心
+        turn to prograde        顺速度方向
+        turn to retrograde      逆速度方向
+        turn to 45              天顶偏左 45°
+        turn to prograde in 3   3 秒内转过去
+
+stage（分级）
+  作用：激活下一级（点火/分离）；也可指定第 N 级。
+  代码：stage        下一级
+        stage 2      第 2 级（1 = 下一次点分级会激活的那一级）
+
+engine（发动机开关）
+  作用：按编号/分级开关发动机。
+  积木：engine [all/2/stage 1] [on/off]
+  代码：engine all off
+        engine 2 on
+        engine stage 1 off
+  备注：按 H 在游戏里显示编号；编号按分级从下往上排，1 = 最下面那级的第一台。
+
+parachute（降落伞）
+  作用：展开（会自动点半开+全开两次）或切断。
+  积木：parachute [all/1/stage 1] [deploy/cut]
+  代码：parachute all deploy
+        parachute 1 cut
+  备注：SFS 的伞受高度/速度限制，真空或太快会失败并提示。
+
+三、数据处理
+-------------------------------------
+set var（用户变量）
+  作用：定义/修改变量，之后可在表达式里直接用。
+  积木：set var [x] = [1]
+  代码：set x = 1
+        set var x = Throttle * 2
+
+log（输出）
+  作用：游戏内弹消息 + 浏览器控制台；文本里 {表达式} 会替换成实时数值。
+  积木：log [message]
+  代码：log "T+{AltitudeAGL} m, v={Speed}"
+        log done
+  备注：{planet} 输出当前天体名。
+
+fail（主动失败）
+  作用：带原因终止整个程序，游戏内红色大字提示。
+  代码：fail "fuel too low"
+
+dialog（游戏内弹窗 / 数字输入）
+  作用：在游戏画面中间弹一个黑底白框窗口；程序会等窗口关闭再继续。
+  积木：dialog [popup/input #] [Title] [Text] [var] [t 秒]
+  代码：popup "Notice" "Hello {planet}"
+        popup "Warning" "Fuel {Fuel}%" timeout 5
+        input "Target altitude" "Enter meters" -> targetAp
+        input "Burn time" "seconds" -> bt timeout 30
+  说明：
+    popup  只显示标题+正文，正文支持 {表达式}；timeout 0 = 一直等。
+    input  显示数字输入框，点 OK 后把数字写进 -> 后面的变量，再继续执行。
+    超时（timeout N）到点自动关闭，输入模式不会写变量。
+    弹窗打开时全屏遮罩拦截鼠标、游戏暂停；R/P/F8/H 暂时失效，避免误触。
+    输入框为空时显示 Enter a number... 占位提示。
+
+四、控制流（容器类，代码用 end 收尾）
+-------------------------------------
+if / else（条件分支）
+  积木：if [TWR] [>=] [1.2] then ... else ...
+  代码：
+    if TWR >= 1.2
+      set throttle to 1
+    else
+      set throttle to 0.6
+    end
+
+while（条件循环）
+  代码：
+    while AltitudeAGL <= 10000
+      set throttle to 1
+      wait 0.2
+    end
+  备注：每条语句至少跨一帧，不会冻死游戏；上限 100000 次。
+
+repeat（次数循环）
+  积木：repeat [5] times
+  代码：
+    repeat 5
+      log "tick"
+      wait 1
+    end
+
+break（跳出循环）
+  作用：跳出最近的 while / repeat。
+  代码：
+    while TWR > 0
+      if Fuel < 0.1
+        break
+      end
+      wait 0.5
+    end
+
+五、表达式与内置变量（速记）
+-------------------------------------
+运算：+ - * / % ^ 、括号、比较（真=1 / 假=0）
+函数：min max abs sqrt floor ceil round clamp pow
+      sin cos tan asin acos atan atan2（角度制） log ln
+常量：pi  e
+
+内置变量（每条语句实时读取）：
+  Throttle        油门 0..1
+  Altitude        海拔（相对参考半径，米）
+  AltitudeAGL     真实离地高度（径向地形/水面，米）
+  Speed / VerticalSpeed / HorizontalSpeed   米/秒
+  Mass            质量（吨）
+  TWR / MaxTWR    当前推力/最大推力 与 质量之比
+  Fuel            燃料比例 0..1
+  FuelAmount / FuelCapacity   燃料量/容量（吨）
+  Apoapsis / Periapsis        远/近地点高度（米，逃逸时 Ap=1e12）
+  Eccentricity / Escaping     偏心率 / 是否逃逸(0/1)
+  Heading         姿态角 −180..180（0=机头朝天顶）
+  AngularVel      角速度（度/秒）
+  Gravity         重力加速度（米/秒²）
+  AirDensity      大气密度（真空=0）
+  DynamicPressure 动压 0.5ρv²
+  AtmosphereTop   大气层顶高度（无大气=0）
+  planet          log 文本里用 {planet} 输出天体名
+
+六、游戏内快捷键（可在 设置 → 按键 → SFS Vizzy 修改）
+-------------------------------------
+F8  打开/聚焦浏览器编辑器
+R   运行（会向浏览器索取“当前这一版”脚本；浏览器离线则用上次保存的程序）
+P   停止
+
+七、常见错误
+-------------------------------------
+no rocket in flight scene   必须在飞行场景且玩家火箭存在
+unknown variable 'xxx'      变量名拼错，或没 set 过
+turn: target not reached    30 秒内没转到目标（检查是否被阻挡/时间加速）
+Program aborted             触发了 fail，原因见上一行日志
+
+八、MechJeb 风格脚本（examples/mechjeb.txt）
+-------------------------------------
+不是内置自动驾驶，而是一份用积木/代码写的示例程序。
+用 CODE 视图粘贴，改 mode（等于选编号）和参数，APPLY 后 RUN。
+
+mode = 1 自动发射：目标远拱点 targetAp（米）。垂直起飞 → 重力转弯 → 到高度后圆化。
+mode = 2 圆化：在最接近的拱点顺行/逆行点火，直到 Ap/Pe 差 < 2 km。
+mode = 3 改变拱点：targetAp / targetPe（0=不改）；改 Ap 在 Pe 点火，改 Pe 在 Ap 点火。
+mode = 4 自动降落：先消水平速度，再按剩余高度闭环下降，最后 5 m 限速。
+mode = 5 快速降落：反推减速后大减速度下降；块语言没有目标点角度，只能落当前正下方。
+mode = 0 什么都不做（想中止请按 P 或 STOP）。
+
+限制：SFS 没有可编程部件/输入框，所以“输入数字”只能在编辑器里改 mode；
+这些脚本是演示性质，参数需要按火箭推重比微调。

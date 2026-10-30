@@ -1,0 +1,2031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SFS Vizzy — visual programming</title>
+<style>
+  :root{
+    --bg:#1b1e24; --panel:#23262d; --line:#31353d; --text:#e8ebf2; --muted:#9aa4b4;
+    --grid:rgba(255,255,255,.045);
+    --ok:#3dd68c; --bad:#e5484d;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+    font-size:12px;display:flex;flex-direction:column;overflow:hidden;
+  }
+  header{
+    display:flex;align-items:center;gap:10px;padding:9px 14px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(#171b22,#111419);
+  }
+  .brand{font-size:13px;letter-spacing:.16em;color:#f3c14b;font-weight:800;white-space:nowrap}
+  .brand b{color:#fff}
+  #conn{width:9px;height:9px;border-radius:50%;background:var(--bad);display:inline-block;
+        margin-right:7px;box-shadow:0 0 8px rgba(229,72,77,.55);vertical-align:middle}
+  #conn.on{background:var(--ok);box-shadow:0 0 8px rgba(61,214,140,.55)}
+  .status{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .spacer{flex:1}
+  .btn{background:#1d232c;border:1px solid #2c3542;color:#dfe5ee;padding:6px 11px;border-radius:4px;
+       font:inherit;font-size:11px;letter-spacing:.07em;cursor:pointer;white-space:nowrap}
+  .btn:hover:not(:disabled){background:#242c37;border-color:#3a4554}
+  .btn:disabled{opacity:.32;cursor:default}
+  .btn.primary{background:#0e7490;border-color:#0e7490;color:#fff}
+  .btn.primary:hover:not(:disabled){background:#0e86a8}
+  .btn.danger{background:#4b1a1f;border-color:#6f272d;color:#f0c2c5}
+  main{flex:1;display:grid;grid-template-columns:196px minmax(300px,1fr) 336px;min-height:0}
+  aside{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:12px}
+  aside.telemetry{border-right:none;border-left:1px solid var(--line);display:flex;flex-direction:column}
+  .ptitle{font-size:9px;letter-spacing:.2em;color:var(--muted);margin:0 0 8px}
+  .canvas{
+    position:relative;overflow:hidden;padding:0;
+    background:
+      linear-gradient(var(--grid) 1px,transparent 1px) 0 0/26px 26px,
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/26px 26px,
+      #191c22;
+    cursor:grab;
+  }
+  .canvas.panning{cursor:grabbing}
+  #canvasWorld{
+    position:absolute;left:0;top:0;
+    padding:18px 22px 80px;
+    width:max-content;min-width:100%;
+    transform-origin:0 0;
+    will-change:transform;
+  }
+  .viewhint{
+    position:absolute;left:12px;bottom:10px;color:#6b7686;font-size:10px;
+    pointer-events:none;user-select:none;
+  }
+  .viewbtn{
+    font-size:10px;padding:3px 8px;
+    background:rgba(35,38,45,.9);border-color:#3a404a;
+  }
+  .viewtools{
+    position:absolute;right:12px;bottom:10px;z-index:6;
+    display:flex;align-items:center;gap:4px;
+    background:rgba(27,30,36,.82);border:1px solid #31353d;border-radius:6px;padding:3px 5px;
+  }
+  #zoomPct{min-width:38px;text-align:center;color:#9aa4b4;font-size:10px;user-select:none}
+  #launches{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-bottom:6px}
+  .launch{flex:0 0 462px;max-width:462px;margin-bottom:6px}
+  .eventbar{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 8px 6px 14px;border-radius:7px;
+    background:linear-gradient(#c9a227,#a8861a);color:#2b2100;font-weight:800;
+    letter-spacing:.16em;box-shadow:0 3px 0 rgba(0,0,0,.35);
+    margin-bottom:4px;
+  }
+  .eventbar .evlabel{white-space:nowrap}
+  .eventbar .grow{flex:1}
+  .eventbar .del{background:rgba(0,0,0,.18);color:#2b2100}
+  .eventbar .del:hover{background:rgba(0,0,0,.32)}
+  .container{display:flex;flex-direction:column;align-items:flex-start}
+  .block{
+    display:flex;align-items:center;gap:5px;
+    background:var(--c);border-radius:7px;padding:3px 6px;min-height:30px;
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 2px 0 rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.14);
+    color:#fff;font-weight:700;font-size:11px;user-select:none;position:relative;max-width:100%;
+  }
+  .block .handle{cursor:grab;opacity:.5;letter-spacing:-1px;padding:0;font-weight:400;font-size:10px}
+  .block .handle:active{cursor:grabbing}
+  .block .label{white-space:nowrap}
+  .block .dim{font-weight:400;opacity:.8;font-size:10px}
+  .block .grow{flex:1}
+  /* 事件条 / 积木行共用的输入控件样式 */
+  .block input.field, .triggerbar input.field{
+    background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.18);border-radius:4px;
+    color:#fff;padding:3px 6px;font:inherit;font-size:11px;outline:none;min-width:34px;
+  }
+  .block input.field:focus, .triggerbar input.field:focus{border-color:rgba(255,255,255,.65);background:rgba(0,0,0,.58)}
+  .block select.op, .triggerbar select.op{
+    background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.18);border-radius:4px;
+    color:#fff;padding:2px;font:inherit;font-size:10px;outline:none;
+  }
+  #events{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+  #triggers{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+  .trigger{flex:0 0 520px;max-width:520px;margin-bottom:6px}
+  .triggerbar{
+    display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+    background:linear-gradient(#0e7490,#0b5b70);border-radius:5px;padding:5px 8px;
+    box-shadow:0 2px 0 rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.12);
+    color:#fff;font-weight:800;letter-spacing:.12em;
+  }
+  .triggerbar .tlabel{white-space:nowrap}
+  .triggerbar .dim{font-weight:400;letter-spacing:0;opacity:.85;font-size:10px}
+  .triggerbar .grow{flex:1}
+  .triggerbar .chk{
+    display:flex;align-items:center;gap:4px;font-weight:400;letter-spacing:0;font-size:11px;
+    cursor:pointer;user-select:none;
+  }
+  .triggerbar .chk input{accent-color:#3dd68c}
+  .del{background:rgba(0,0,0,.28);border:none;color:#fff;width:20px;height:20px;border-radius:4px;
+       cursor:pointer;font:inherit;line-height:1;opacity:.55;padding:0}
+  .del:hover{opacity:1;background:rgba(0,0,0,.5)}
+  .sub{margin:1px 0 3px 18px;border-left:2px solid rgba(255,255,255,.10);padding-left:8px}
+  .sublabel{font-size:9px;letter-spacing:.16em;color:#93a0b1;margin:4px 0 2px}
+  .slot{height:8px;margin:1px 0;border-radius:3px;transition:height .07s,background .07s}
+  .slot.over{height:26px;background:rgba(255,255,255,.14);outline:1px dashed rgba(255,255,255,.5)}
+  .hint{color:#5e6a7b;font-size:10px;font-style:italic;padding:3px 5px}
+  .palette .pbtn{
+    display:block;width:100%;text-align:left;margin-bottom:5px;padding:6px 9px;border:none;
+    border-radius:5px;color:#fff;font:inherit;font-weight:700;font-size:11px;cursor:pointer;
+    background:var(--c);box-shadow:0 2px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .palette .pbtn:hover{filter:brightness(1.16)}
+  .palette .phint{color:#6b7686;font-size:10px;line-height:1.5;margin-top:10px}
+  .palette .psec{font-size:9px;letter-spacing:.18em;color:#6b7686;margin:14px 0 6px}
+  .telem-row{margin-bottom:9px}
+  .telem-head{display:flex;justify-content:space-between;color:#93a0b1;font-size:10px;letter-spacing:.08em}
+  .telem-head b{color:#fff;font-weight:700;letter-spacing:0}
+  .bar{height:6px;border-radius:3px;background:#232a34;margin-top:4px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#0e7490,#3dd68c);transition:width .09s linear}
+  .vars{color:#8ea0b6;font-size:10px;line-height:1.7;word-break:break-word}
+  .console{
+    flex:1;min-height:120px;overflow:auto;background:#0b0e12;border:1px solid var(--line);
+    border-radius:4px;padding:8px;font-size:10px;line-height:1.55;color:#9fb0c4;
+  }
+  .console div{white-space:pre-wrap;word-break:break-word}
+  .console .ts{color:#5a6675}
+  .console .ok{color:#7ee2b8}
+  .console .err{color:#ff9a9e}
+  footer{padding:6px 14px;border-top:1px solid var(--line);color:#68758a;font-size:10px;display:flex;gap:14px}
+  .viewtoggle{display:flex;border:1px solid #2c3542;border-radius:4px;overflow:hidden}
+  .viewtoggle .vbtn{border:none;border-radius:0;background:#1d232c}
+  .viewtoggle .vbtn.active{background:#0e7490;color:#fff}
+  .codeview{display:flex;flex-direction:column;min-height:0;min-width:0;grid-column:1/3}
+  .codebar{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--line);
+           color:#8b95a5;font-size:11px}
+  .codebar .btn{margin-left:auto}
+  #codeText{
+    flex:1;resize:none;border:none;outline:none;background:#0b0e12;color:#d7e0ec;
+    font:inherit;font-size:12px;line-height:1.65;padding:14px 18px;white-space:pre;tab-size:2;
+  }
+  .codeerr{min-height:22px;padding:4px 14px;color:#ff9a9e;font-size:11px;border-top:1px solid var(--line)}
+  .codeerr.ok{color:#7ee2b8}
+  .modal{position:fixed;inset:0;background:rgba(5,8,12,.72);display:flex;align-items:center;
+         justify-content:center;z-index:50}
+  .helpbox{width:min(860px,92vw);max-height:86vh;display:flex;flex-direction:column;
+           background:#161a20;border:1px solid #2c3542;border-radius:8px;box-shadow:0 18px 60px rgba(0,0,0,.5)}
+  .helphead{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;
+            border-bottom:1px solid var(--line);font-weight:800;letter-spacing:.1em;color:#f3c14b}
+  .helpbody{overflow:auto;padding:6px 22px 22px;font-size:12px;line-height:1.75;color:#c3cddb}
+  .helpbody h2{font-size:13px;color:#fff;margin:20px 0 6px;border-bottom:1px solid #242a33;padding-bottom:5px}
+  .helpbody h2:first-child{margin-top:8px}
+  .helpbody code{background:#0b0e12;border:1px solid #242a33;border-radius:3px;padding:1px 5px;color:#8fd3e8;font-size:11px}
+  .helpbody pre{background:#0b0e12;border:1px solid #242a33;border-radius:4px;padding:10px 12px;overflow:auto;
+                font-size:11px;line-height:1.6;color:#9fb0c4}
+  .helpbody table{border-collapse:collapse;width:100%;margin:6px 0}
+  .helpbody td,.helpbody th{border:1px solid #242a33;padding:4px 9px;text-align:left;vertical-align:top}
+  .mjbox{width:min(580px,94vw)}
+  .mjstatus{background:#0b0e12;border:1px solid #242a33;border-radius:4px;padding:8px 10px;
+            color:#8fd3e8;font-size:12px;margin:8px 0 12px;white-space:pre-wrap}
+  .mjrow{display:flex;align-items:center;gap:10px;margin:9px 0;flex-wrap:wrap}
+  .mjrow .btn{min-width:170px;text-align:left}
+  .mjrow label{display:flex;align-items:center;gap:6px;color:#9fb0c4;font-size:11px}
+  .mjrow input{background:#0b0e12;border:1px solid #2c3542;border-radius:4px;color:#fff;
+               padding:4px 6px;width:92px;font:inherit;font-size:11px}
+  .helpbody th{color:#8b95a5;font-size:10px;letter-spacing:.12em;background:#12161c}
+  .helpbody td code{white-space:nowrap}
+  .helpbody .dim{color:#8b95a5}
+  @media (max-width:1080px){
+    main{grid-template-columns:170px minmax(260px,1fr) 290px}
+  }
+  /* monochrome theme */
+  :root{--bg:#0c0c0c;--panel:#151515;--line:#2c2c2c;--text:#f2f2f2;--muted:#9a9a9a;
+        --grid:rgba(255,255,255,.06);--ok:#ffffff;--bad:#777777}
+  header{background:#0c0c0c;border-bottom-color:#2c2c2c}
+  .brand{color:#ffffff}
+  #conn{background:#666666;box-shadow:none}
+  #conn.on{background:#ffffff;box-shadow:none}
+  .btn{background:#141414;border-color:#3a3a3a;color:#f0f0f0}
+  .btn:hover:not(:disabled){background:#1f1f1f;border-color:#666666}
+  .btn.primary{background:#f2f2f2;border-color:#f2f2f2;color:#0c0c0c}
+  .btn.primary:hover:not(:disabled){background:#ffffff}
+  .btn.danger{background:#0c0c0c;border-color:#6a6a6a;color:#f2f2f2}
+  .canvas{background:
+      linear-gradient(var(--grid) 1px,transparent 1px) 0 0/26px 26px,
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/26px 26px,#0f0f0f}
+  .eventbar{background:#f2f2f2;color:#0c0c0c;border:1px solid #f2f2f2;box-shadow:none}
+  .eventbar .del{background:#d0d0d0;color:#0c0c0c}
+  .eventbar .del:hover{background:#bcbcbc}
+  .triggerbar{background:#141414;border:1px solid #4a4a4a;box-shadow:none}
+  .block{border-color:rgba(255,255,255,.16);
+         box-shadow:0 1px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08)}
+  .slot.over{background:rgba(255,255,255,.12);outline-color:rgba(255,255,255,.6)}
+  .palette .pbtn{border:1px solid rgba(255,255,255,.14);box-shadow:0 1px 0 rgba(0,0,0,.6)}
+  .bar{background:#242424}
+  .bar i{background:#f2f2f2}
+  .console{background:#0a0a0a;border-color:#2c2c2c;color:#c9c9c9}
+  .console .ok{color:#ffffff}
+  .console .err{color:#bdbdbd}
+  .viewtoggle .vbtn{background:#141414}
+  .viewtoggle .vbtn.active{background:#f2f2f2;color:#0c0c0c}
+  #codeText{background:#0a0a0a;color:#eaeaea}
+  .codeerr{color:#c9c9c9}
+  .codeerr.ok{color:#ffffff}
+  .modal{background:rgba(0,0,0,.8)}
+  .helpbox{background:#101010;border-color:#333333}
+  .helphead{color:#ffffff}
+  .helpbody h2{border-bottom-color:#2c2c2c}
+  .helpbody code{background:#0a0a0a;border-color:#2c2c2c;color:#e2e2e2}
+  .helpbody pre{background:#0a0a0a;border-color:#2c2c2c;color:#d0d0d0}
+  .helpbody td,.helpbody th{border-color:#2c2c2c}
+  .viewtools{background:rgba(12,12,12,.9);border-color:#333333}
+  #zoomPct{color:#9a9a9a}
+
+  /* ---- bottom telemetry layout ---- */
+  main{display:grid;grid-template-columns:var(--leftw,196px) minmax(0,1fr);
+       grid-template-rows:minmax(0,1fr) auto;min-height:0}
+  body.left-hidden main{grid-template-columns:0 minmax(0,1fr)}
+  body.left-hidden #palette{display:none}
+  #palette{grid-column:1;grid-row:1}
+  .stage{grid-column:2;grid-row:1;display:flex;min-width:0;min-height:0}
+  .stage .canvas{flex:1;min-width:0}
+  .stage .codeview{flex:1;min-width:0;grid-column:auto}
+  .bottom{grid-column:1/3;grid-row:2;background:var(--panel);border-top:1px solid var(--line);
+          padding:8px 12px;display:flex;flex-direction:column;gap:6px;min-height:0}
+  .bottom-top{display:flex;align-items:center;gap:14px;min-height:26px}
+  .telem-grid{flex:1;display:flex;flex-wrap:wrap;gap:2px 16px;align-content:flex-start;
+              max-height:80px;overflow:auto}
+  .telem-row{width:126px;margin:0}
+  .bottom-body{display:flex;gap:12px;min-height:0}
+  .bottom-body .vars{width:300px;max-height:72px;overflow:auto;border-right:1px solid var(--line);padding-right:10px}
+  .bottom-body .console{flex:1;height:72px;min-height:0}
+  body.bottom-hidden .bottom-body{display:none}
+  body.bottom-hidden .telem-grid{max-height:none}
+  .btn.mini{padding:2px 7px;font-size:10px}
+
+  /* ---- Vizzy-style clip blocks ---- */
+  .block{border-radius:9px;flex-wrap:wrap;margin-top:5px;row-gap:4px}
+  .block::before{content:"";position:absolute;left:15px;top:-5px;width:26px;height:6px;
+                 background:var(--c);border:1px solid rgba(255,255,255,.22);border-bottom:0;
+                 border-radius:3px 3px 0 0;pointer-events:none}
+  .block::after{content:"";position:absolute;left:15px;bottom:-6px;width:26px;height:6px;
+                background:#0f0f0f;border-radius:0 0 3px 3px;pointer-events:none}
+  .launch{flex:0 1 auto;width:max-content;min-width:462px;max-width:820px}
+  .sub{margin:2px 0 4px 14px;border-left:7px solid var(--c,#3a3a3a);padding-left:10px}
+  .sublabel{font-size:8px;letter-spacing:.16em;color:var(--c,#93a0b1);background:#0f0f0f;
+            display:inline-block;padding:0 4px;margin:0 0 3px -3px}
+  .field{max-width:none}
+
+  .block{width:max-content;max-width:100%}
+  .container{min-width:160px}
+  .slot{align-self:stretch}
+  .hint{align-self:flex-start}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span id="conn"></span>SFS <b>VIZZY</b></div>
+  <div class="status" id="status">connecting…</div>
+  <div class="spacer"></div>
+  <div class="viewtoggle">
+    <button class="btn vbtn active" id="viewBlocks">BLOCKS</button>
+    <button class="btn vbtn" id="viewCode">CODE</button>
+  </div>
+  <button class="btn" id="btnTogglePalette" title="show / hide block palette">PANEL</button>
+  <button class="btn" id="btnToggleBottom" title="show / hide telemetry">INFO</button>
+  <button class="btn primary" id="btnRun">RUN</button>
+  <button class="btn" id="btnStop">STOP</button>
+  <button class="btn" id="btnSave">SAVE</button>
+  <button class="btn" id="btnFromGame">FROM GAME</button>
+  <button class="btn danger" id="btnClear">CLEAR</button>
+  <button class="btn" id="btnHelp" title="help / documentation">?</button>
+</header>
+
+<main id="main">
+  <aside class="palette" id="palette">
+    <div class="ptitle">BLOCKS</div>
+    <div id="paletteList"></div>
+    <div class="phint">
+      Click a block to append it to the last <b>ON START</b>; drag a block from here
+      and drop it on any glowing gap to place it exactly. Drag blocks inside the canvas
+      to move them (inputs won't start a drag). Use <b>break</b> to exit the nearest while/repeat.
+    </div>
+    <div class="psec">EXPRESSION</div>
+    <div class="phint">
+      + - * / % ^ ( )<br>
+      min max abs sqrt clamp pow floor ceil round<br>
+      sin cos tan asin acos atan atan2 (degrees) log ln · pi e
+    </div>
+    <div class="psec">LOG TEXT</div>
+    <div class="phint">log supports interpolation: <b>Alt = {AltitudeAGL} m</b> · <b>{planet}</b></div>
+  </aside>
+
+  <div class="stage">
+    <section class="canvas" id="canvas">
+        <div id="canvasWorld">
+          <div id="events"></div>
+          <div id="triggers"></div>
+          <div id="launches"></div>
+        </div>
+        <div class="viewhint">drag to pan · wheel to zoom</div>
+        <div class="viewtools">
+          <button class="btn viewbtn" id="zoomOut" title="zoom out (Ctrl -)">−</button>
+          <span id="zoomPct" title="current zoom">100%</span>
+          <button class="btn viewbtn" id="zoomIn" title="zoom in (Ctrl +)">+</button>
+          <button class="btn viewbtn" id="btnRecenter" title="reset view (Ctrl 0)">CENTER</button>
+        </div>
+      </section>
+
+    <section class="codeview" id="codeview" hidden>
+        <div class="codebar">
+          <span>Plain-text program — same thing as the blocks, pick whichever hurts your brain less.</span>
+          <button class="btn primary" id="btnApply">APPLY → BLOCKS</button>
+        </div>
+        <textarea id="codeText" spellcheck="false"></textarea>
+        <div class="codeerr" id="codeErr"></div>
+      </section>
+  </div>
+
+  <section class="bottom" id="bottom">
+    <div class="bottom-top">
+      <span class="ptitle" style="margin:0">TELEMETRY</span>
+      <div id="telem" class="telem-grid"></div>
+      <button class="btn mini" id="btnBottomHide" title="collapse telemetry">▾</button>
+    </div>
+    <div class="bottom-body">
+      <div class="vars" id="vars"></div>
+      <div class="console" id="console"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>F8 in game opens this page</span>
+  <span id="foot-url"></span>
+  <span>In game: R = RUN · P = STOP (rebindable)</span>
+  <span>Ctrl+Enter = RUN (blocks) / APPLY (code)</span>
+</footer>
+
+<div class="modal" id="helpModal" hidden>
+  <div class="helpbox">
+    <div class="helphead">
+      <span>SFS VIZZY HELP</span>
+      <button class="btn" id="btnHelpClose">✕</button>
+    </div>
+    <div class="helpbody" id="helpBody"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ */
+/* Model                                                               */
+/* ------------------------------------------------------------------ */
+
+const KIND_LABEL = {
+  wait: "wait",
+  wait_until: "wait until",
+  set_throttle: "set throttle to",
+  throttle_on: "throttle on",
+  throttle_off: "throttle off",
+  rcs_on: "RCS on",
+  rcs_off: "RCS off",
+  turn: "turn",
+  turn_to: "turn to",
+  stage: "stage",
+  set_var: "set var",
+  log: "log",
+  if: "if",
+  while: "while",
+  repeat: "repeat",
+  break: "break",
+  fail: "fail"
+};
+
+const KIND_COLOR = {
+  wait: "#6b5bb5",
+  wait_until: "#5a4a9e",
+  set_throttle: "#1f7a8c",
+  throttle_on: "#176b78",
+  throttle_off: "#135c66",
+  rcs_on: "#2a7f9e",
+  rcs_off: "#236a86",
+  turn: "#c06a2e",
+  turn_to: "#a85826",
+  stage: "#b8860b",
+  set_var: "#2f5fa8",
+  log: "#4753a8",
+  dialog: "#3f5f7f",
+  if: "#b5621f",
+  while: "#9c4f16",
+  repeat: "#8a4b8f",
+  break: "#7a3a3a",
+  fail: "#a83232"
+};
+
+const OPS = ["<", "<=", ">", ">=", "==", "!="];
+
+let program = { launches: [{ blocks: [] }], events: [], triggers: [], variables: {} };
+let nextId = 1;
+let dragId = null;
+let paletteDrag = null;      // 从左侧面板拖出来的新积木 { kind }
+let connected = false;
+let running = false;
+let pendingFromGame = false;
+let serverProgram = null;
+
+const LS_KEY = "sfsvizzy.program.v1";
+const LS_KEY_OLD = "sfsblocks.program.v1";   // 旧模组名时期的本地存档，自动迁移一次
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = text;
+  return n;
+}
+
+function newBlock(kind) {
+  const b = { kind };
+  switch (kind) {
+    case "wait": b.a = "1"; break;
+    case "wait_until": b.a = "AltitudeAGL"; b.op = ">"; b.b = "10000"; break;
+    case "set_throttle": b.a = "0.5"; break;
+    case "set_var": b.a = "myVar"; b.b = "0"; break;
+    case "log": b.a = "Hello"; break;
+    case "turn": b.a = "15"; b.dir = "left"; b.b = ""; break;
+    case "turn_to": b.a = "0"; b.dir = "deg"; b.b = ""; break;
+    case "dialog": b.title = "Notice"; b.a = "Hello {planet}"; b.dir = "message"; b.var = "answer"; b.b = "0"; break;
+    case "repeat": b.a = "5"; break;
+    case "fail": b.a = "Program failed"; break;
+    case "engine": b.dir = "on"; b.a = "all"; break;
+    case "parachute": b.dir = "deploy"; b.a = "all"; break;
+    case "stage": b.a = ""; break;
+    case "if": b.a = "AltitudeAGL"; b.op = "<="; b.b = "10000"; break;
+    case "while": b.a = "TWR"; b.op = ">="; b.b = "1.2"; break;
+  }
+  b._id = nextId++;
+  b.then = [];
+  b.els = [];
+  b.body = [];
+  return b;
+}
+
+function newTrigger() {
+  return {
+    _id: nextId++,
+    mode: "agl",
+    op: ">=",
+    value: "10000",
+    once: true,
+    blocks: []
+  };
+}
+
+function ensureIds(list) {
+  if (!Array.isArray(list)) return;
+  for (const b of list) {
+    if (!b._id) b._id = nextId++;
+    if (b.kind === "if") { b.then = b.then || []; b.els = b.els || []; ensureIds(b.then); ensureIds(b.els); }
+    if (b.kind === "while") { b.body = b.body || []; ensureIds(b.body); }
+    if (b.kind === "repeat") { b.body = b.body || []; ensureIds(b.body); }
+  }
+}
+
+function ensureEventIds() {
+  if (!Array.isArray(program.events)) program.events = [];
+  for (const ev of program.events) {
+    if (!ev._id) ev._id = nextId++;
+    if (!Array.isArray(ev.blocks)) ev.blocks = [];
+    ensureIds(ev.blocks);
+  }
+}
+
+function newEvent(type) {
+  return { _id: nextId++, type: type || "key", key: "R", once: true, blocks: [] };
+}
+
+function ensureTriggerIds() {
+  if (!Array.isArray(program.triggers)) program.triggers = [];
+  for (const t of program.triggers) {
+    if (!t._id) t._id = nextId++;
+    if (!Array.isArray(t.blocks)) t.blocks = [];
+    ensureIds(t.blocks);
+  }
+}
+
+/** 多 ON START：老存档只有 main，自动迁移成一个入口。 */
+function ensureLaunches() {
+  if (!Array.isArray(program.launches)) program.launches = [];
+  if (!program.launches.length) {
+    const legacy = Array.isArray(program.main) ? program.main : [];
+    program.launches.push({ blocks: legacy });
+  }
+  for (const ev of program.launches) {
+    if (!Array.isArray(ev.blocks)) ev.blocks = [];
+    ensureIds(ev.blocks);
+  }
+  ensureTriggerIds();
+  ensureEventIds();
+}
+
+function cleanProgram(p) {
+  const conv = (b) => {
+    const o = { kind: b.kind, a: b.a == null ? "" : String(b.a), op: b.op || "<=", b: b.b == null ? "" : String(b.b) };
+    if (b.kind === "turn") o.dir = b.dir || "rel";
+    if (b.kind === "turn_to") o.dir = b.dir || "deg";
+    if (b.kind === "engine") o.dir = b.dir || "on";
+    if (b.kind === "parachute") o.dir = b.dir || "deploy";
+    if (b.kind === "dialog") {
+      o.dir = b.dir || "message";
+      o.title = b.title || "";
+      o.var = b.var || "";
+    }
+    if (b.kind === "if") { o.then = (b.then || []).map(conv); o.els = (b.els || []).map(conv); }
+    if (b.kind === "while" || b.kind === "repeat") { o.body = (b.body || []).map(conv); }
+    return o;
+  };
+  return {
+    launches: (p.launches || []).map((ev) => ({ blocks: (ev.blocks || []).map(conv) })),
+    events: (p.events || []).map((ev) => ({
+      type: ev.type || "key",
+      key: ev.key || "R",
+      once: ev.once !== false,
+      blocks: (ev.blocks || []).map(conv)
+    })),
+    triggers: (p.triggers || []).map((t) => ({
+      mode: t.mode === "asl" ? "asl" : "agl",
+      op: t.op || ">=",
+      value: t.value == null ? "0" : String(t.value),
+      once: t.once !== false,
+      blocks: (t.blocks || []).map(conv)
+    })),
+    variables: p.variables || {}
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Rendering                                                           */
+/* ------------------------------------------------------------------ */
+
+const canvasEl = document.getElementById("canvas");
+const worldEl = document.getElementById("canvasWorld");
+const VIEW_KEY = "sfsvizzy.view.v1";
+let viewState = { x: 22, y: 16, z: 1 };
+let panning = null;
+
+/** 浏览器画布的“自由视角”：平移 + 缩放，独立于游戏相机。 */
+function applyView() {
+  if (!worldEl) return;
+  worldEl.style.transform = "translate(" + viewState.x + "px," + viewState.y + "px) scale(" + viewState.z + ")";
+  const pct = document.getElementById("zoomPct");
+  if (pct) pct.textContent = Math.round(viewState.z * 100) + "%";
+  try { localStorage.setItem(VIEW_KEY, JSON.stringify(viewState)); } catch (_) {}
+}
+
+function loadView() {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) || "null");
+    if (v && isFinite(v.x) && isFinite(v.y) && isFinite(v.z)) viewState = v;
+  } catch (_) {}
+}
+
+function zoomAt(clientX, clientY, factor) {
+  const rect = canvasEl.getBoundingClientRect();
+  const px = clientX - rect.left;
+  const py = clientY - rect.top;
+  const z2 = Math.max(0.45, Math.min(2.0, viewState.z * factor));
+  const k = z2 / viewState.z;
+  viewState.x = px - (px - viewState.x) * k;
+  viewState.y = py - (py - viewState.y) * k;
+  viewState.z = z2;
+  applyView();
+}
+
+canvasEl.addEventListener("mousedown", (e) => {
+  if (e.button !== 0 && e.button !== 1) return;
+  if (e.target.closest("input,select,button,.block,.eventbar,.triggerbar")) return;
+  panning = { sx: e.clientX, sy: e.clientY, ox: viewState.x, oy: viewState.y };
+  canvasEl.classList.add("panning");
+  e.preventDefault();
+});
+window.addEventListener("mousemove", (e) => {
+  if (!panning) return;
+  viewState.x = panning.ox + (e.clientX - panning.sx);
+  viewState.y = panning.oy + (e.clientY - panning.sy);
+  applyView();
+});
+window.addEventListener("mouseup", () => {
+  if (!panning) return;
+  panning = null;
+  canvasEl.classList.remove("panning");
+});
+canvasEl.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 0.89);
+}, { passive: false });
+document.getElementById("btnRecenter").addEventListener("click", () => {
+  viewState = { x: 22, y: 16, z: 1 };
+  applyView();
+});
+
+// 以画布中心缩放（右下角 +/- 按钮）
+function zoomCenter(factor) {
+  const rect = canvasEl.getBoundingClientRect();
+  zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+}
+document.getElementById("zoomIn").addEventListener("click", () => zoomCenter(1.15));
+document.getElementById("zoomOut").addEventListener("click", () => zoomCenter(1 / 1.15));
+
+// Ctrl + / - / 0 也能缩放和复位
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  if (e.key === "=" || e.key === "+") { zoomCenter(1.15); e.preventDefault(); }
+  else if (e.key === "-") { zoomCenter(1 / 1.15); e.preventDefault(); }
+  else if (e.key === "0") { viewState = { x: 22, y: 16, z: 1 }; applyView(); e.preventDefault(); }
+});
+
+loadView();
+applyView();
+
+function render() {
+  ensureLaunches();
+  renderLaunches();
+  renderEvents();
+  renderTriggers();
+}
+
+/** 多个 ON START：每个入口一张卡片，彼此并行执行。 */
+function renderLaunches() {
+  const wrap = document.getElementById("launches");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  program.launches.forEach((ev, index) => {
+    const card = el("div", "launch");
+    const bar = el("div", "eventbar");
+    bar.appendChild(el("span", "evlabel", "ON START"));
+    bar.appendChild(el("span", "grow"));
+
+    const del = el("button", "del", "x");
+    del.title = "delete this ON START";
+    del.addEventListener("click", () => {
+      if (program.launches.length <= 1) {
+        program.launches[0].blocks = [];
+      } else {
+        program.launches.splice(index, 1);
+      }
+      render();
+      scheduleSave();
+    });
+    bar.appendChild(del);
+
+    card.appendChild(bar);
+    const container = el("div", "container");
+    card.appendChild(container);
+    wrap.appendChild(card);
+    renderContainer(ev.blocks, container, ["l", index]);
+  });
+}
+
+function renderEvents() {
+  const wrap = document.getElementById("events");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  if (!Array.isArray(program.events)) program.events = [];
+
+  program.events.forEach((ev, index) => {
+    const card = el("div", "trigger");
+    const bar = el("div", "triggerbar");
+
+    bar.appendChild(el("span", "tlabel", "ON"));
+    bar.appendChild(eventTypeSelect(ev));
+    if ((ev.type || "key") === "key") bar.appendChild(field(ev, "key", 42, "R"));
+
+    const chk = el("label", "chk");
+    const cb = el("input");
+    cb.type = "checkbox";
+    cb.checked = ev.once !== false;
+    cb.addEventListener("change", () => { ev.once = cb.checked; scheduleSave(); });
+    chk.appendChild(cb);
+    chk.appendChild(document.createTextNode("once"));
+    bar.appendChild(chk);
+
+    bar.appendChild(el("span", "grow"));
+
+    const del = el("button", "del", "x");
+    del.title = "delete event";
+    del.addEventListener("click", () => {
+      program.events.splice(index, 1);
+      render();
+      scheduleSave();
+    });
+    bar.appendChild(del);
+
+    card.appendChild(bar);
+    const container = el("div", "container");
+    card.appendChild(container);
+    wrap.appendChild(card);
+    renderContainer(ev.blocks || (ev.blocks = []), container, ["e", index]);
+  });
+}
+
+function eventTypeSelect(ev) {
+  const sel = el("select", "op");
+  sel.style.flex = "0 0 auto";
+  [["key", "KEY"], ["stage", "STAGE"], ["landed", "LANDED"], ["dock", "DOCK"]].forEach((pair) => {
+    const opt = el("option", null, pair[1]);
+    opt.value = pair[0];
+    if ((ev.type || "key") === pair[0]) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", () => { ev.type = sel.value; render(); scheduleSave(); });
+  sel.addEventListener("mousedown", (e) => e.stopPropagation());
+  return sel;
+}
+
+/** 高度触发事件：画在 ON LAUNCH 上方，每条带自己的容器。 */
+function renderTriggers() {
+  const wrap = document.getElementById("triggers");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  if (!Array.isArray(program.triggers)) program.triggers = [];
+
+  program.triggers.forEach((t, index) => {
+    const card = el("div", "trigger");
+    const bar = el("div", "triggerbar");
+
+    bar.appendChild(el("span", "tlabel", "ON ALTITUDE"));
+    bar.appendChild(modeSelect(t));
+    bar.appendChild(opSelect(t));
+    bar.appendChild(field(t, "value", 78, "10000"));
+    bar.appendChild(el("span", "dim", "m"));
+
+    const chk = el("label", "chk");
+    const cb = el("input");
+    cb.type = "checkbox";
+    cb.checked = t.once !== false;
+    cb.addEventListener("change", () => { t.once = cb.checked; scheduleSave(); });
+    chk.appendChild(cb);
+    chk.appendChild(document.createTextNode("once"));
+    bar.appendChild(chk);
+
+    bar.appendChild(el("span", "grow"));
+
+    const del = el("button", "del", "x");
+    del.title = "delete trigger";
+    del.addEventListener("click", () => {
+      program.triggers.splice(index, 1);
+      render();
+      scheduleSave();
+    });
+    bar.appendChild(del);
+
+    card.appendChild(bar);
+    const container = el("div", "container");
+    card.appendChild(container);
+    wrap.appendChild(card);
+    renderContainer(t.blocks || (t.blocks = []), container, ["t", index]);
+  });
+}
+
+function modeSelect(t) {
+  const sel = el("select", "op");
+  sel.style.flex = "0 0 auto";
+  [["agl", "AGL (true altitude)"], ["asl", "ASL (sea level)"]].forEach((pair) => {
+    const opt = el("option", null, pair[1]);
+    opt.value = pair[0];
+    if ((t.mode || "agl") === pair[0]) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", () => { t.mode = sel.value; scheduleSave(); });
+  sel.addEventListener("mousedown", (e) => e.stopPropagation());
+  return sel;
+}
+
+function getList(path) {
+  let list;
+  let i = 0;
+  if (path[0] === "l") {
+    list = program.launches[path[1]].blocks;
+    i = 2;
+  } else if (path[0] === "t") {
+    list = program.triggers[path[1]].blocks;
+    i = 2;
+  } else if (path[0] === "e") {
+    list = program.events[path[1]].blocks;
+    i = 2;
+  } else {
+    list = program.launches[0].blocks;   // 兼容旧路径
+  }
+  for (; i < path.length; i += 2) {
+    const block = list[path[i]];
+    list = block[path[i + 1]] || [];
+  }
+  return list;
+}
+
+function renderContainer(list, parent, path) {
+  parent.appendChild(makeSlot(path, 0));
+  if (!list.length) parent.appendChild(el("div", "hint", "(drop blocks here)"));
+  for (let i = 0; i < list.length; i++) {
+    renderBlock(list, i, path, parent);
+    parent.appendChild(makeSlot(path, i + 1));
+  }
+}
+
+function renderBlock(list, index, path, parent) {
+  const b = list[index];
+  const row = el("div", "block");
+  row.style.setProperty("--c", KIND_COLOR[b.kind] || "#4b5563");
+
+  const handle = el("span", "handle", "::");
+  row.appendChild(handle);
+  row.appendChild(el("span", "label", KIND_LABEL[b.kind] || b.kind));
+
+  switch (b.kind) {
+    case "wait":
+      row.appendChild(field(b, "a", 42, "1"));
+      row.appendChild(el("span", "dim", "sec"));
+      break;
+    case "wait_until":
+      row.appendChild(el("span", "dim", "until"));
+      row.appendChild(field(b, "a", 62, "AltitudeAGL"));
+      row.appendChild(opSelect(b));
+      row.appendChild(field(b, "b", 62, "10000"));
+      break;
+    case "set_throttle":
+      row.appendChild(field(b, "a", 112, "0.5"));
+      break;
+    case "turn":
+      row.appendChild(turnDirSelect(b));
+      row.appendChild(el("span", "dim", "by"));
+      row.appendChild(field(b, "a", 44, "15"));
+      row.appendChild(el("span", "dim", "deg"));
+      row.appendChild(field(b, "b", 34, ""));
+      row.appendChild(el("span", "dim", "sec (opt)"));
+      break;
+    case "turn_to":
+      row.appendChild(dirSelect(b));
+      if (!b.dir || b.dir === "deg") row.appendChild(field(b, "a", 48, "0"));
+      row.appendChild(el("span", "dim", DIR_LABELS[b.dir || "deg"]));
+      row.appendChild(field(b, "b", 34, ""));
+      row.appendChild(el("span", "dim", "sec (opt)"));
+      break;
+    case "engine":
+      row.appendChild(choiceSelect(b, [["on", "on"], ["off", "off"]]));
+      row.appendChild(field(b, "a", 44, "all"));
+      break;
+    case "parachute":
+      row.appendChild(choiceSelect(b, [["deploy", "deploy"], ["cut", "cut"]]));
+      row.appendChild(field(b, "a", 44, "all"));
+      break;
+    case "stage":
+      row.appendChild(field(b, "a", 30, "1"));
+      break;
+    case "set_var":
+      row.appendChild(el("span", "dim", "name"));
+      row.appendChild(field(b, "a", 52, "myVar"));
+      row.appendChild(el("span", "dim", "="));
+      row.appendChild(field(b, "b", 56, "0"));
+      break;
+    case "log":
+    case "fail":
+      row.appendChild(field(b, "a", 140, b.kind === "log" ? "message ({AltitudeAGL})" : "failure reason"));
+      break;
+    case "dialog":
+      row.appendChild(dialogKindSelect(b));
+      row.appendChild(field(b, "title", 78, "Title"));
+      row.appendChild(field(b, "a", 120, "Text {AltitudeAGL}"));
+      if ((b.dir || "message") === "number") {
+        row.appendChild(el("span", "dim", "→"));
+        row.appendChild(field(b, "var", 46, "var"));
+      }
+      row.appendChild(el("span", "dim", "t"));
+      row.appendChild(field(b, "b", 28, "0"));
+      break;
+    case "if":
+      row.appendChild(field(b, "a", 62, "AltitudeAGL"));
+      row.appendChild(opSelect(b));
+      row.appendChild(field(b, "b", 62, "10000"));
+      row.appendChild(el("span", "dim", "then"));
+      break;
+    case "while":
+      row.appendChild(field(b, "a", 56, "TWR"));
+      row.appendChild(opSelect(b));
+      row.appendChild(field(b, "b", 56, "1.2"));
+      row.appendChild(el("span", "dim", "do"));
+      break;
+    case "repeat":
+      row.appendChild(field(b, "a", 38, "5"));
+      row.appendChild(el("span", "dim", "times"));
+      break;
+  }
+
+  row.appendChild(el("span", "grow"));
+
+  const del = el("button", "del", "x");
+  del.title = "delete block";
+  del.addEventListener("click", (e) => {
+    e.stopPropagation();
+    list.splice(index, 1);
+    render();
+    scheduleSave();
+  });
+  row.appendChild(del);
+
+  // 整块都可拖（输入框/下拉/按钮除外），和 Vizzy 一样
+  row.draggable = true;
+  row.addEventListener("dragstart", (e) => {
+    if (e.target.closest("input,select,button,label")) { e.preventDefault(); return; }
+    dragId = b._id;
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", String(b._id)); } catch (_) {}
+  });
+  row.addEventListener("dragend", () => { dragId = null; });
+
+  parent.appendChild(row);
+
+  if (b.kind === "if") {
+    b.then = b.then || []; b.els = b.els || [];
+    renderSub("THEN", b.then, [...path, index, "then"], parent, KIND_COLOR[b.kind]);
+    renderSub("ELSE", b.els, [...path, index, "els"], parent, KIND_COLOR[b.kind]);
+  } else if (b.kind === "while") {
+    b.body = b.body || [];
+    renderSub("DO", b.body, [...path, index, "body"], parent, KIND_COLOR[b.kind]);
+  } else if (b.kind === "repeat") {
+    b.body = b.body || [];
+    renderSub("DO", b.body, [...path, index, "body"], parent, KIND_COLOR[b.kind]);
+  }
+}
+
+function renderSub(label, list, path, parent, color) {
+  const wrap = el("div", "sub");
+  if (color) wrap.style.setProperty("--c", color);
+  wrap.appendChild(el("div", "sublabel", label));
+  const container = el("div", "container");
+  wrap.appendChild(container);
+  parent.appendChild(wrap);
+  renderContainer(list, container, path);
+}
+
+function field(b, key, width, placeholder) {
+  const input = el("input", "field");
+  input.type = "text";
+  input.value = b[key] == null ? "" : String(b[key]);
+  const fit = () => {
+    const len = Math.max(String(input.value || "").length, String(placeholder || "").length);
+    input.style.width = Math.max(width, Math.min(380, 26 + len * 8.8)) + "px";
+  };
+  fit();
+  input.style.flex = "0 0 auto";
+  if (placeholder) input.placeholder = placeholder;
+  input.addEventListener("input", () => { b[key] = input.value; fit(); scheduleSave(); });
+  input.addEventListener("mousedown", (e) => e.stopPropagation());
+  input.addEventListener("dragstart", (e) => e.preventDefault());
+  return input;
+}
+
+function opSelect(b) {
+  const sel = el("select", "op");
+  sel.style.flex = "0 0 auto";
+  for (const op of OPS) {
+    const opt = el("option", null, op);
+    opt.value = op;
+    if ((b.op || "<=") === op) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener("change", () => { b.op = sel.value; scheduleSave(); });
+  sel.addEventListener("mousedown", (e) => e.stopPropagation());
+  return sel;
+}
+
+const DIRS = ["deg", "up", "down", "prograde", "retrograde"];
+const DIR_LABELS = {
+  deg: "deg from zenith (0 = up)",
+  up: "zenith (radial out)",
+  down: "nadir (to surface)",
+  prograde: "prograde (along velocity)",
+  retrograde: "retrograde (against velocity)"
+};
+
+function dirSelect(b) {
+  const sel = el("select", "op");
+  sel.style.flex = "0 0 auto";
+  for (const d of DIRS) {
+    const opt = el("option", null, d);
+    opt.value = d;
+    if ((b.dir || "deg") === d) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener("change", () => {
+    b.dir = sel.value;
+    render();
+    scheduleSave();
+  });
+  sel.addEventListener("mousedown", (e) => e.stopPropagation());
+  return sel;
+}
+
+function choiceSelect(b, pairs) {
+  const sel = el("select", "op");
+  sel.style.flex = "0 0 auto";
+  pairs.forEach((pair) => {
+    const opt = el("option", null, pair[1]);
+    opt.value = pair[0];
+    if ((b.dir || pairs[0][0]) === pair[0]) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", () => { b.dir = sel.value; scheduleSave(); });
+  sel.addEventListener("mousedown", (e) => e.stopPropagation());
+  return sel;
+}
+
+function dialogKindSelect(b) {
+  const sel = el("select", "op");
+  [["message", "popup"], ["number", "input #"]].forEach(function (pair) {
+    const opt = el("option", null, pair[1]);
+    opt.value = pair[0];
+    if ((b.dir || "message") === pair[0]) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", () => {
+    b.dir = sel.value;
+    render();
+    scheduleSave();
+  });
+  sel.addEventListener("mousedown", (e) => e.stopPropagation());
+  return sel;
+}
+
+/** turn 的方向：left / right 以天顶（90° 垂直上升）为基准，rel 才相对当前机头。 */
+const TURN_DIRS = [["left", "left"], ["right", "right"], ["rel", "rel (nose)"]];
+function turnDirSelect(b) {
+  const sel = el("select", "op");
+  sel.style.flex = "0 0 auto";
+  for (const pair of TURN_DIRS) {
+    const opt = el("option", null, pair[1]);
+    opt.value = pair[0];
+    if ((b.dir || "rel") === pair[0]) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener("change", () => { b.dir = sel.value; scheduleSave(); });
+  sel.addEventListener("mousedown", (e) => e.stopPropagation());
+  return sel;
+}
+
+function makeSlot(path, index) {
+  const slot = el("div", "slot");
+  slot.addEventListener("dragover", (e) => {
+    if (!dragId && !paletteDrag) return;
+    e.preventDefault();
+    e.stopPropagation();
+    slot.classList.add("over");
+  });
+  slot.addEventListener("dragleave", () => slot.classList.remove("over"));
+  slot.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    slot.classList.remove("over");
+
+    // 从左侧面板拖来的新积木
+    if (paletteDrag) {
+      const kind = paletteDrag.kind;
+      paletteDrag = null;
+      const list = getList(path);
+      list.splice(Math.max(0, Math.min(index, list.length)), 0, newBlock(kind));
+      render();
+      scheduleSave();
+      return;
+    }
+
+    const src = findBlock(dragId);
+    dragId = null;
+    if (!src) return;
+
+    const destList = getList(path);
+    let at = index;
+    if (destList === src.list && src.index < at) at--;
+    src.list.splice(src.index, 1);
+    at = Math.max(0, Math.min(at, destList.length));
+    destList.splice(at, 0, src.block);
+    render();
+    scheduleSave();
+  });
+  return slot;
+}
+
+function findBlock(id) {
+  const scan = (list) => {
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (String(b._id) === String(id)) return { block: b, list, index: i };
+      if (b.kind === "if") { const r = scan(b.then || []) || scan(b.els || []); if (r) return r; }
+      if (b.kind === "while" || b.kind === "repeat") { const r = scan(b.body || []); if (r) return r; }
+    }
+    return null;
+  };
+  for (const ev of program.launches || []) {
+    const r = scan(ev.blocks || []);
+    if (r) return r;
+  }
+  for (const ev of program.events || []) {
+    const r = scan(ev.blocks || []);
+    if (r) return r;
+  }
+  for (const t of program.triggers || []) {
+    const r = scan(t.blocks || []);
+    if (r) return r;
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Palette                                                             */
+/* ------------------------------------------------------------------ */
+
+const PALETTE_GROUPS = [
+  ["EVENTS", [
+    ["@launch", "On Start"],
+    ["@trigger", "On Altitude Trigger"],
+    ["@key", "On Key"],
+    ["@stage", "On Stage"],
+    ["@landed", "On Landed"],
+    ["@dock", "On Dock"]
+  ]],
+  ["FLIGHT", [
+    ["wait", "Wait (sec)"],
+    ["wait_until", "Wait Until"],
+    ["set_throttle", "Set Throttle"],
+    ["throttle_on", "Throttle On"],
+    ["throttle_off", "Throttle Off"],
+    ["rcs_on", "RCS On"],
+    ["rcs_off", "RCS Off"],
+    ["turn", "Turn Left / Right"],
+    ["turn_to", "Turn To"],
+    ["stage", "Stage"],
+    ["engine", "Engine On / Off"],
+    ["parachute", "Parachute"]
+  ]],
+  ["LOGIC", [
+    ["set_var", "Set Variable"],
+    ["log", "Log"],
+    ["if", "If / Then / Else"],
+    ["while", "While / Do"],
+    ["repeat", "Repeat (times)"],
+    ["break", "Break (exit loop)"],
+    ["fail", "Fail (abort)"]
+  ]],
+  ["UI", [
+    ["dialog", "Popup / Input"]
+  ]]
+];
+
+(function buildPalette() {
+  const wrap = document.getElementById("paletteList");
+  for (const [title, items] of PALETTE_GROUPS) {
+    wrap.appendChild(el("div", "psec", title));
+    for (const [kind, label] of items) {
+      const btn = el("button", "pbtn", label);
+      btn.style.setProperty("--c", kind === "@trigger" ? "#1f6f7a" : (kind === "@launch" ? "#7a5c12" : (KIND_COLOR[kind] || "#5a5a5a")));
+
+      btn.addEventListener("click", () => {
+        if (kind === "@launch") {
+          ensureLaunches();
+          program.launches.push({ blocks: [] });
+          render();
+          scheduleSave();
+          canvasEl.scrollTop = canvasEl.scrollHeight;
+          return;
+        }
+        if (kind === "@trigger") {
+          ensureTriggerIds();
+          program.triggers.push(newTrigger());
+          render();
+          scheduleSave();
+          canvasEl.scrollTop = 0;
+          return;
+        }
+        if (kind === "@key" || kind === "@stage" || kind === "@landed" || kind === "@dock") {
+          ensureEventIds();
+          program.events.push(newEvent(kind.slice(1)));
+          render();
+          scheduleSave();
+          canvasEl.scrollTop = 0;
+          return;
+        }
+        ensureLaunches();
+        program.launches[program.launches.length - 1].blocks.push(newBlock(kind));
+        render();
+        scheduleSave();
+        canvasEl.scrollTop = canvasEl.scrollHeight;
+      });
+
+      // 事件类积木不参与拖放（它们本身就是容器）
+      if (!kind.startsWith("@")) {
+        btn.draggable = true;
+        btn.addEventListener("dragstart", (e) => {
+          paletteDrag = { kind };
+          e.dataTransfer.effectAllowed = "copy";
+          try { e.dataTransfer.setData("text/plain", "palette:" + kind); } catch (_) {}
+        });
+        btn.addEventListener("dragend", () => { paletteDrag = null; });
+      }
+
+      wrap.appendChild(btn);
+    }
+  }
+})();
+
+/* ------------------------------------------------------------------ */
+/* Telemetry                                                           */
+/* ------------------------------------------------------------------ */
+
+const TELEM_ROWS = [
+  { key: "Throttle", label: "THROTTLE", bar: true, fmt: (v) => Math.round(v * 100) + "%" },
+  { key: "Altitude", label: "ALTITUDE", fmt: fmtDistance },
+  { key: "AltitudeAGL", label: "AGL", fmt: fmtDistance },
+  { key: "Speed", label: "SPEED", fmt: (v) => v.toFixed(0) + " m/s" },
+  { key: "VerticalSpeed", label: "V-SPEED", fmt: (v) => v.toFixed(1) + " m/s" },
+  { key: "HorizontalSpeed", label: "H-SPEED", fmt: (v) => v.toFixed(1) + " m/s" },
+  { key: "Mass", label: "MASS", fmt: (v) => v.toFixed(2) + " t" },
+  { key: "TWR", label: "TWR", fmt: (v) => v.toFixed(2) },
+  { key: "MaxTWR", label: "MAX TWR", fmt: (v) => v.toFixed(2) },
+  { key: "Fuel", label: "FUEL", bar: true, fmt: (v) => Math.round(v * 100) + "%" },
+  { key: "Apoapsis", label: "APOAPSIS", fmt: fmtDistance },
+  { key: "Periapsis", label: "PERIAPSIS", fmt: fmtDistance },
+  { key: "Eccentricity", label: "ECC", fmt: (v) => v.toFixed(3) },
+  { key: "Heading", label: "HEADING", fmt: (v) => v.toFixed(1) + "°" },
+  { key: "AngularVel", label: "ANG VEL", fmt: (v) => v.toFixed(1) + "°/s" },
+  { key: "Gravity", label: "GRAVITY", fmt: (v) => v.toFixed(2) + " m/s²" },
+  { key: "AirDensity", label: "AIR DENS", fmt: (v) => v.toFixed(3) },
+  { key: "DynamicPressure", label: "DYN PRESS", fmt: (v) => v.toFixed(0) }
+];
+
+function fmtDistance(v) {
+  if (Math.abs(v) < 1000) return v.toFixed(0) + " m";
+  return (v / 1000).toFixed(2) + " km";
+}
+
+const telemValues = {};
+const telemBars = {};
+
+(function buildTelem() {
+  const wrap = document.getElementById("telem");
+  for (const row of TELEM_ROWS) {
+    const item = el("div", "telem-row");
+    const head = el("div", "telem-head");
+    head.appendChild(el("span", null, row.label));
+    const value = el("b", null, "--");
+    head.appendChild(value);
+    item.appendChild(head);
+    if (row.bar) {
+      const bar = el("div", "bar");
+      const fill = el("i");
+      bar.appendChild(fill);
+      item.appendChild(bar);
+      telemBars[row.key] = fill;
+    }
+    wrap.appendChild(item);
+    telemValues[row.key] = value;
+  }
+
+  const vars = document.getElementById("vars");
+  vars.textContent = "Throttle, Altitude, AltitudeAGL, Speed, VerticalSpeed, HorizontalSpeed, "
+    + "Mass, TWR, MaxTWR, Fuel, FuelAmount, FuelCapacity, Apoapsis, Periapsis, Eccentricity, "
+    + "Escaping, Heading, AngularVel, Gravity, AirDensity, DynamicPressure, AtmosphereTop "
+    + "+ your own set-var names. {planet} works inside log text.";
+})();
+
+/* ------------------------------------------------------------------ */
+/* Console                                                             */
+/* ------------------------------------------------------------------ */
+
+const consoleEl = document.getElementById("console");
+
+function addLog(line, cls) {
+  const d = el("div", cls || null);
+  const ts = el("span", "ts", new Date().toLocaleTimeString() + "  ");
+  d.appendChild(ts);
+  d.appendChild(document.createTextNode(line));
+  consoleEl.appendChild(d);
+  while (consoleEl.childElementCount > 300) consoleEl.removeChild(consoleEl.firstChild);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+/* ------------------------------------------------------------------ */
+/* WebSocket                                                           */
+/* ------------------------------------------------------------------ */
+
+let ws = null;
+
+function setConnected(on) {
+  connected = on;
+  document.getElementById("conn").className = on ? "on" : "";
+  if (!on) {
+    document.getElementById("status").textContent = "disconnected — retrying…";
+    btnRun.disabled = true;
+    btnStop.disabled = true;
+  } else {
+    btnRun.disabled = false;
+  }
+}
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss://" : "ws://";
+  ws = new WebSocket(proto + location.host + "/ws");
+
+  ws.onopen = () => {
+    setConnected(true);
+    ws.send(JSON.stringify({ type: "hello" }));
+    addLog("connected to game", "ok");
+  };
+
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (_) { return; }
+
+    if (msg.type === "state") {
+      onState(msg);
+    } else if (msg.type === "log") {
+      addLog(msg.line);
+    } else if (msg.type === "runstate") {
+      running = !!msg.running;
+      btnStop.disabled = !running;
+      btnRun.disabled = running || !connected;
+      addLog(running ? "program running" : "program stopped", running ? "ok" : null);
+    } else if (msg.type === "request_run") {
+      // 游戏里按了 RUN 快捷键：把浏览器里“当前这版”程序发过去（含未保存的编辑）
+      addLog("RUN hotkey from game — sending current program", "ok");
+      if (view === "code" && !applyCode(false)) {
+        addLog("code view has errors — not running", "err");
+        return;
+      }
+      send({ type: "run", program: cleanProgram(program) });
+    } else if (msg.type === "program") {
+      serverProgram = msg.program;
+      if (!(localStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY_OLD)) || pendingFromGame) {
+        applyProgram(msg.program);
+        addLog(pendingFromGame ? "loaded program from game" : "loaded saved program from game", "ok");
+      }
+      pendingFromGame = false;
+    }
+  };
+
+  ws.onclose = () => {
+    setConnected(false);
+    ws = null;
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => { try { ws.close(); } catch (_) {} };
+}
+
+function send(obj) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    addLog("not connected to the game", "err");
+    return false;
+  }
+  ws.send(JSON.stringify(obj));
+  return true;
+}
+
+function applyProgram(p) {
+  try {
+    const launches = (p && p.launches && p.launches.length)
+      ? p.launches
+      : [{ blocks: (p && p.main) || [] }];
+    program = {
+      launches: launches,
+      events: (p && p.events) || [],
+      triggers: (p && p.triggers) || [],
+      variables: (p && p.variables) || {}
+    };
+  } catch (_) {
+    program = { launches: [{ blocks: [] }], events: [], triggers: [], variables: {} };
+  }
+  ensureLaunches();
+  render();
+  saveLocal();
+}
+
+/* ------------------------------------------------------------------ */
+/* State                                                               */
+/* ------------------------------------------------------------------ */
+
+let hasRocket = false;
+
+function onState(s) {
+  hasRocket = !!s.rocket;
+  running = !!s.running;
+  btnStop.disabled = !running;
+  btnRun.disabled = running || !connected;
+
+  for (const row of TELEM_ROWS) {
+    const valueEl = telemValues[row.key];
+    const v = s[row.key];
+    if (typeof v === "number" && isFinite(v)) {
+      valueEl.textContent = row.fmt(v);
+      if (row.bar) telemBars[row.key].style.width = Math.max(0, Math.min(1, v)) * 100 + "%";
+    } else {
+      valueEl.textContent = "--";
+      if (row.bar) telemBars[row.key].style.width = "0%";
+    }
+  }
+
+  const status = document.getElementById("status");
+  if (!hasRocket) status.textContent = "connected · no rocket in flight";
+  else status.textContent = "connected · " + (s.planet || "flight") + " · " + (s.situation || "flight") + (running ? " · RUNNING" : "");
+}
+
+/* ------------------------------------------------------------------ */
+/* Persistence                                                         */
+/* ------------------------------------------------------------------ */
+
+let saveTimer = null;
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveLocal();
+    if (connected) send({ type: "save", program: cleanProgram(program) });
+  }, 600);
+}
+
+function saveLocal() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(cleanProgram(program)));
+    localStorage.removeItem(LS_KEY_OLD);   // 迁移完成，清掉旧键
+  } catch (_) {}
+}
+
+/* ------------------------------------------------------------------ */
+/* Buttons                                                             */
+/* ------------------------------------------------------------------ */
+
+const btnRun = document.getElementById("btnRun");
+const btnStop = document.getElementById("btnStop");
+
+btnRun.addEventListener("click", () => {
+  if (view === "code" && !applyCode(false)) return;   // 先把代码应用回程序
+  if (send({ type: "run", program: cleanProgram(program) })) {
+    addLog("run requested (" + totalBlocks() + " blocks)");
+  }
+});
+
+btnStop.addEventListener("click", () => {
+  send({ type: "stop" });
+});
+
+document.getElementById("btnSave").addEventListener("click", () => {
+  if (view === "code" && !applyCode(false)) return;
+  saveLocal();
+  send({ type: "save", program: cleanProgram(program) });
+});
+
+document.getElementById("btnFromGame").addEventListener("click", () => {
+  pendingFromGame = true;
+  send({ type: "get" });
+});
+
+document.getElementById("btnClear").addEventListener("click", () => {
+  if (!confirm("Clear the whole program (all ON START events and altitude triggers)?")) return;
+  program = { launches: [{ blocks: [] }], events: [], triggers: [], variables: {} };
+  render();
+  saveLocal();
+  send({ type: "save", program: cleanProgram(program) });
+  addLog("program cleared");
+});
+
+function totalBlocks() {
+  let n = 0;
+  for (const ev of program.launches || []) n += countBlocks(ev.blocks || []);
+  for (const ev of program.events || []) n += 1 + countBlocks(ev.blocks || []);
+  for (const t of program.triggers || []) n += 1 + countBlocks(t.blocks || []);
+  return n;
+}
+
+function countBlocks(list) {
+  let n = 0;
+  for (const b of list) {
+    n++;
+    if (b.kind === "if") n += countBlocks(b.then || []) + countBlocks(b.els || []);
+    if (b.kind === "while" || b.kind === "repeat") n += countBlocks(b.body || []);
+  }
+  return n;
+}
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
+    if (view === "code") applyCode(false);
+    else btnRun.click();
+  }
+  if (e.key === "Escape" && !helpModal.hidden) closeHelp();
+});
+
+/* ------------------------------------------------------------------ */
+/* Code view (text <-> blocks)                                         */
+/* ------------------------------------------------------------------ */
+
+let view = "blocks";
+
+const canvasSection = document.getElementById("canvas");
+const codeSection = document.getElementById("codeview");
+const codeTextEl = document.getElementById("codeText");
+const codeErrEl = document.getElementById("codeErr");
+const btnViewBlocks = document.getElementById("viewBlocks");
+const btnViewCode = document.getElementById("viewCode");
+
+function programToCode() {
+  const out = [];
+  const condText = (b) => b.a + " " + (b.op || "<=") + " " + b.b;
+
+  const emitBlock = (b, indent) => {
+    const pad = "  ".repeat(indent);
+    switch (b.kind) {
+      case "wait": out.push(pad + "wait " + (b.a || "0")); break;
+      case "wait_until": out.push(pad + "wait until " + condText(b)); break;
+      case "set_throttle": out.push(pad + "set throttle to " + (b.a || "0")); break;
+      case "throttle_on": out.push(pad + "throttle on"); break;
+      case "throttle_off": out.push(pad + "throttle off"); break;
+      case "rcs_on": out.push(pad + "rcs on"); break;
+      case "rcs_off": out.push(pad + "rcs off"); break;
+      case "turn":
+        out.push(pad + "turn " + (b.dir || "left") + " " + (b.a || "0") + (b.b ? " in " + b.b : ""));
+        break;
+      case "turn_to":
+        out.push(pad + "turn to " + (b.dir && b.dir !== "deg" ? b.dir : (b.a || "0")) + (b.b ? " in " + b.b : ""));
+        break;
+      case "stage": out.push(pad + "stage" + (b.a ? " " + b.a : "")); break;
+      case "engine": out.push(pad + "engine " + (b.a || "all") + " " + (b.dir || "on")); break;
+      case "parachute": out.push(pad + "parachute " + (b.a || "all") + " " + (b.dir || "deploy")); break;
+      case "set_var": out.push(pad + "set " + (b.a || "x") + " = " + (b.b || "0")); break;
+      case "log":
+      case "fail":
+        out.push(pad + b.kind + (b.a ? " " + b.a : ""));
+        break;
+      case "dialog": {
+        const t = JSON.stringify(b.title || "");
+        const body = JSON.stringify(b.a || "");
+        const timeout = b.b && String(b.b) !== "0" ? " timeout " + b.b : "";
+        if ((b.dir || "message") === "number")
+          out.push(pad + "input " + t + " " + body + " -> " + (b.var || "input") + timeout);
+        else
+          out.push(pad + "popup " + t + " " + body + timeout);
+        break;
+      }
+      case "if":
+        out.push(pad + "if " + condText(b));
+        for (const c of b.then || []) emitBlock(c, indent + 1);
+        if ((b.els || []).length) {
+          out.push(pad + "else");
+          for (const c of b.els) emitBlock(c, indent + 1);
+        }
+        out.push(pad + "end");
+        break;
+      case "while":
+        out.push(pad + "while " + condText(b));
+        for (const c of b.body || []) emitBlock(c, indent + 1);
+        out.push(pad + "end");
+        break;
+      case "repeat":
+        out.push(pad + "repeat " + (b.a || "1"));
+        for (const c of b.body || []) emitBlock(c, indent + 1);
+        out.push(pad + "end");
+        break;
+      case "break": out.push(pad + "break"); break;
+      default: out.push(pad + "# unknown block: " + b.kind);
+    }
+  };
+
+  for (const ev of program.launches || []) {
+    out.push("on start");
+    for (const b of ev.blocks || []) emitBlock(b, 1);
+    out.push("end");
+  }
+
+  for (const ev of program.events || []) {
+    if ((ev.type || "key") === "key") out.push('on key "' + (ev.key || "R") + '"');
+    else out.push("on " + (ev.type || "stage"));
+    for (const b of ev.blocks || []) emitBlock(b, 1);
+    out.push("end");
+  }
+
+  for (const t of program.triggers || []) {
+    out.push("on altitude " + (t.mode || "agl") + " " + (t.op || ">=") + " " + (t.value || "0")
+      + (t.once === false ? " repeat" : " once"));
+    for (const b of t.blocks || []) emitBlock(b, 1);
+    out.push("end");
+  }
+
+  return out.join("\n");
+}
+
+function parseCode(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const launches = [];
+  const events = [];
+  const triggers = [];
+  const stack = [];   // { kind, block, trigger, list }
+  let cur = null;     // 当前写入的容器；null = 还没进事件，按隐式 ON START 处理
+  let implicit = null;
+
+  const target = () => {
+    if (cur) return cur;
+    if (!implicit) {
+      implicit = { blocks: [] };
+      launches.push(implicit);
+    }
+    cur = implicit.blocks;
+    return cur;
+  };
+  const add = (b) => { target().push(b); };
+
+  const err = (ln, msg) => { throw new Error("line " + (ln + 1) + ": " + msg); };
+
+  const splitCond = (s, ln) => {
+    let depth = 0;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth = Math.max(0, depth - 1);
+      else if (depth === 0) {
+        const two = s.substr(i, 2);
+        if (two === "<=" || two === ">=" || two === "==" || two === "!=")
+          return { a: s.slice(0, i).trim(), op: two, b: s.slice(i + 2).trim() };
+        if (c === "<" || c === ">")
+          return { a: s.slice(0, i).trim(), op: c, b: s.slice(i + 1).trim() };
+      }
+    }
+    err(ln, "condition needs a comparison operator (< <= > >= == !=)");
+  };
+
+  const pushIf = (ln, cond, kind) => {
+    const c = splitCond(cond, ln);
+    const b = newBlock(kind);
+    b.a = c.a; b.op = c.op; b.b = c.b;
+    add(b);
+    stack.push({ kind, block: b, list: kind === "if" ? b.then : b.body });
+    cur = stack[stack.length - 1].list;
+  };
+
+  for (let ln = 0; ln < lines.length; ln++) {
+    const line = lines[ln].trim();
+    if (!line || line.startsWith("#") || line.startsWith("//")) continue;
+    let m;
+
+    if ((m = line.match(/^end$/i))) {
+      if (!stack.length) err(ln, "end without an open block");
+      stack.pop();
+      cur = stack.length ? stack[stack.length - 1].list : (implicit ? implicit.blocks : null);
+      continue;
+    }
+    if ((m = line.match(/^else$/i))) {
+      const f = stack[stack.length - 1];
+      if (!f || f.kind !== "if") err(ln, "else without if");
+      f.list = f.block.els;
+      cur = f.list;
+      continue;
+    }
+    if ((m = line.match(/^on\s+(?:start|launch)$/i))) {
+      const ev = { blocks: [] };
+      launches.push(ev);
+      stack.push({ kind: "launch", list: ev.blocks });
+      cur = ev.blocks;
+      continue;
+    }
+    if ((m = line.match(/^on\s+key\s+"(.*?)"$/i))) {
+      const ev = newEvent("key");
+      ev.key = m[1];
+      events.push(ev);
+      stack.push({ kind: "event", list: ev.blocks });
+      cur = ev.blocks;
+      continue;
+    }
+    if ((m = line.match(/^on\s+(stage|landed|dock)$/i))) {
+      const ev = newEvent(m[1].toLowerCase());
+      events.push(ev);
+      stack.push({ kind: "event", list: ev.blocks });
+      cur = ev.blocks;
+      continue;
+    }
+    if ((m = line.match(/^on\s+altitude\s+(agl|asl)\s*(<=|>=|<|>)\s*(.+?)(?:\s+(once|repeat))?$/i))) {
+      const t = newTrigger();
+      t.mode = m[1].toLowerCase();
+      t.op = m[2];
+      t.value = m[3].trim();
+      t.once = (m[4] || "once").toLowerCase() !== "repeat";
+      triggers.push(t);
+      stack.push({ kind: "trigger", trigger: t, list: t.blocks });
+      cur = t.blocks;
+      continue;
+    }
+    if ((m = line.match(/^popup\s+"(.*?)"\s+"(.*?)"(?:\s+timeout\s+(\S+))?$/i))) {
+      const b = newBlock("dialog");
+      b.dir = "message"; b.title = m[1]; b.a = m[2]; b.b = m[3] || "0";
+      add(b); continue;
+    }
+    if ((m = line.match(/^input\s+"(.*?)"\s+"(.*?)"\s*->\s*([A-Za-z_]\w*)(?:\s+timeout\s+(\S+))?$/i))) {
+      const b = newBlock("dialog");
+      b.dir = "number"; b.title = m[1]; b.a = m[2]; b.var = m[3]; b.b = m[4] || "0";
+      add(b); continue;
+    }
+    if ((m = line.match(/^if\s+(.+)$/i))) { pushIf(ln, m[1], "if"); continue; }
+    if ((m = line.match(/^while\s+(.+)$/i))) { pushIf(ln, m[1], "while"); continue; }
+    if ((m = line.match(/^wait\s+until\s+(.+)$/i))) {
+      const c = splitCond(m[1], ln);
+      const b = newBlock("wait_until"); b.a = c.a; b.op = c.op; b.b = c.b;
+      add(b); continue;
+    }
+    if ((m = line.match(/^wait\s+(.+)$/i))) {
+      const b = newBlock("wait"); b.a = m[1].trim(); add(b); continue;
+    }
+    if ((m = line.match(/^repeat\s+(.+?)(?:\s+times)?$/i))) {
+      const b = newBlock("repeat");
+      b.a = m[1].trim();
+      add(b);
+      stack.push({ kind: "repeat", block: b, list: b.body });
+      cur = b.body;
+      continue;
+    }
+    if ((m = line.match(/^set\s+throttle\s+to\s+(.+)$/i))) {
+      const b = newBlock("set_throttle"); b.a = m[1].trim(); add(b); continue;
+    }
+    if ((m = line.match(/^throttle\s+on$/i))) { add(newBlock("throttle_on")); continue; }
+    if ((m = line.match(/^throttle\s+off$/i))) { add(newBlock("throttle_off")); continue; }
+    if ((m = line.match(/^rcs\s+on$/i))) { add(newBlock("rcs_on")); continue; }
+    if ((m = line.match(/^rcs\s+off$/i))) { add(newBlock("rcs_off")); continue; }
+    if ((m = line.match(/^turn\s+to\s+(.+?)(?:\s+in\s+(.+))?$/i))) {
+      const raw = m[1].trim();
+      const arg = raw.toLowerCase();
+      const b = newBlock("turn_to");
+      b.b = m[2] ? m[2].trim() : "";
+      if (DIRS.includes(arg) && arg !== "deg") { b.dir = arg; b.a = "0"; }
+      else { b.dir = "deg"; b.a = raw; }
+      add(b); continue;
+    }
+    if ((m = line.match(/^turn\s+(left|right|rel)\s+(.+?)(?:\s+in\s+(.+))?$/i))) {
+      const b = newBlock("turn");
+      b.dir = m[1].toLowerCase();
+      b.a = m[2].trim();
+      b.b = m[3] ? m[3].trim() : "";
+      add(b); continue;
+    }
+    if ((m = line.match(/^turn\s+(.+)$/i))) {
+      const b = newBlock("turn"); b.dir = "rel"; b.a = m[1].trim(); add(b); continue;
+    }
+    if ((m = line.match(/^engine\s+(\S+)\s+(on|off)$/i))) {
+      const b = newBlock("engine"); b.a = m[1]; b.dir = m[2].toLowerCase(); add(b); continue;
+    }
+    if ((m = line.match(/^parachute\s+(\S+)\s+(deploy|cut)$/i))) {
+      const b = newBlock("parachute"); b.a = m[1]; b.dir = m[2].toLowerCase(); add(b); continue;
+    }
+    if ((m = line.match(/^stage(?:\s+(\d+))?$/i))) {
+      const b = newBlock("stage"); b.a = m[1] || ""; add(b); continue;
+    }
+    if ((m = line.match(/^break$/i))) { add(newBlock("break")); continue; }
+    if ((m = line.match(/^set(?:\s+var)?\s+([A-Za-z_]\w*)\s*=\s*(.+)$/))) {
+      const b = newBlock("set_var"); b.a = m[1]; b.b = m[2].trim(); add(b); continue;
+    }
+    if ((m = line.match(/^(log|fail)\b\s*(.*)$/i))) {
+      let text = m[2].trim();
+      if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) text = text.slice(1, -1);
+      const b = newBlock(m[1].toLowerCase()); b.a = text; add(b); continue;
+    }
+    err(ln, "don't understand this line (see ? help)");
+  }
+
+  if (stack.length) err(lines.length, "missing end");
+  return { launches: launches, events: events, triggers: triggers };
+}
+
+function applyCode(switchToBlocks) {
+  try {
+    const parsed = parseCode(codeTextEl.value);
+    program = {
+      launches: parsed.launches && parsed.launches.length ? parsed.launches : [{ blocks: [] }],
+      events: parsed.events,
+      triggers: parsed.triggers,
+      variables: program.variables || {}
+    };
+    ensureLaunches();
+    render();
+    scheduleSave();
+    codeErrEl.textContent = "applied " + totalBlocks() + " blocks";
+    codeErrEl.className = "codeerr ok";
+    if (switchToBlocks) setView("blocks");
+    return true;
+  } catch (e) {
+    codeErrEl.textContent = e.message;
+    codeErrEl.className = "codeerr";
+    return false;
+  }
+}
+
+function setView(v) {
+  if (v === view) return;
+  if (view === "code" && v === "blocks") {
+    if (!applyCode(false)) return;   // parse error → stay in code view
+  }
+  view = v;
+  btnViewBlocks.classList.toggle("active", v === "blocks");
+  btnViewCode.classList.toggle("active", v === "code");
+  canvasSection.hidden = v !== "blocks";
+  /* palette visibility handled by the collapse toggle */
+  codeSection.hidden = v !== "code";
+  if (v === "code") {
+    codeTextEl.value = programToCode();
+    codeErrEl.textContent = "";
+    codeErrEl.className = "codeerr";
+    codeTextEl.focus();
+  }
+}
+
+btnViewBlocks.addEventListener("click", () => setView("blocks"));
+btnViewCode.addEventListener("click", () => setView("code"));
+document.getElementById("btnApply").addEventListener("click", () => applyCode(false));
+
+/* ------------------------------------------------------------------ */
+/* Help                                                                */
+/* ------------------------------------------------------------------ */
+
+const helpModal = document.getElementById("helpModal");
+const HELP_HTML = `
+<h2>Quick start</h2>
+<p>Press <code>F8</code> in game to open this page. Click a block in the left palette to append it to the
+last <b>ON START</b>, or drag it onto any glowing gap to place it exactly. Drag blocks inside the canvas
+to reorder. <b>RUN</b> executes on the current rocket (flight scene only). Programs save both in the
+browser (localStorage) and in <code>Mods/SFSVizzyMod/program.json</code>.</p>
+
+<h2>Free camera (canvas)</h2>
+<p>Drag empty space (or middle-drag) to pan; <b>Wheel</b> zooms around the cursor (45%-200%); drag with the left button to pan. Use the <b>- / + / CENTER</b> buttons at the bottom right,
+or <b>Ctrl + / - / 0</b>. The view is stored locally and does not touch the in-game camera.</p>
+
+<h2>Multiple ON START</h2>
+<p>Events can be duplicated: <b>EVENTS -> On Start</b> adds another entry. All entries run in parallel,
+each with its own container and <code>x</code> delete button.</p>
+<pre>on start
+  wait 1
+  set throttle to 1
+end
+on start
+  wait until AltitudeAGL &gt; 2000
+  stage
+end</pre>
+
+<h2>Blocks</h2>
+<table>
+<tr><th>Block</th><th>What it does</th></tr>
+<tr><td><code>wait N</code></td><td>Wait N seconds of game time (time warp advances it).</td></tr>
+<tr><td><code>wait until cond</code></td><td>Hold until the condition becomes true.</td></tr>
+<tr><td><code>set throttle to x</code></td><td>Set throttle 0..1; values above 0 ignite the engine.</td></tr>
+<tr><td><code>throttle on / off</code></td><td>Engine on / off.</td></tr>
+<tr><td><code>rcs on / off</code></td><td>RCS on / off.</td></tr>
+<tr><td><code>turn left|right N [in S]</code></td><td>Turn N degrees relative to the local zenith (90 deg vertical ascent).
+  <code>left</code> = counter-clockwise, <code>right</code> = clockwise. Optional <code>in S</code> seconds.
+  <code>turn rel N</code> is relative to the current nose.</td></tr>
+<tr><td><code>turn to TARGET [in S]</code></td><td>Absolute attitude: degrees (0 = zenith), <code>up</code>, <code>down</code>,
+  <code>prograde</code>, <code>retrograde</code>.</td></tr>
+<tr><td><code>stage [N]</code></td><td>Activate the next stage, or stage N (1 = next).</td></tr>
+<tr><td><code>engine all|2 on|off</code></td><td>Switch engines. 1-based order; <code>all</code> = every engine,
+  <code>stage 1</code> = engines in stage 1.</td></tr>
+<tr><td><code>parachute all|2|stage 1 deploy|cut</code></td><td>Deploy fully or cut chutes.
+  Same selector rules; press <b>H</b> in game to see part numbers.</td></tr>
+<tr><td><code>set x = expr</code></td><td>User variable.</td></tr>
+<tr><td><code>log text</code></td><td>Message in game + browser console; <code>{expr}</code> interpolates values, <code>{planet}</code> the body name.</td></tr>
+<tr><td><code>popup "Title" "Body"</code></td><td>In-game popup. Body supports <code>{expr}</code>; optional <code>timeout N</code> closes it after N seconds.</td></tr>
+<tr><td><code>input "Title" "Body" -&gt; var</code></td><td>In-game number input; stores the value in <code>var</code>. Optional <code>timeout N</code>.</td></tr>
+<tr><td><code>if / else / end</code></td><td>Conditional branch.</td></tr>
+<tr><td><code>while cond / end</code></td><td>Loop while true (one statement per frame, never freezes the game).</td></tr>
+<tr><td><code>repeat N / end</code></td><td>Repeat N times.</td></tr>
+<tr><td><code>break</code></td><td>Exit the nearest while / repeat.</td></tr>
+<tr><td><code>fail msg</code></td><td>Abort the program with a loud message.</td></tr>
+<tr><td><code>ON KEY "K"</code></td><td>Event: fires while the program runs and that key is pressed.
+  Pick a key that isn't a game hotkey (K is a good choice).</td></tr>
+<tr><td><code>ON STAGE</code></td><td>Event: fires when a stage is activated.</td></tr>
+<tr><td><code>ON LANDED</code></td><td>Event: fires on touchdown.</td></tr>
+<tr><td><code>ON DOCK</code></td><td>Event: fires when a docking port becomes occupied.</td></tr>
+<tr><td><code>ON ALTITUDE</code></td><td>Event: fires when AGL/ASL crosses the threshold. AGL is true height above the
+  surface (polar terrain, water counts as ground). <b>once</b> fires once; uncheck to re-arm after leaving the band by 2 m.</td></tr>
+</table>
+
+<h2>Autopilot example scripts</h2>
+<p>The MechJeb-style functions are <b>plain programs</b>, not built-in features: open the
+<code>examples/</code> folder next to the DLL and paste one into the CODE view. Each script starts
+with a few <code>set</code> parameters (target altitude, target Ap/Pe, mode) that you edit in the editor.
+SFS is 2D, so there is no orbital inclination: "launch to orbit" uses a target apoapsis altitude.</p>
+
+<h2>Variables (live)</h2>
+<table>
+<tr><th>Group</th><th>Variables</th></tr>
+<tr><td>Flight</td><td><code>Throttle</code> (0..1), <code>Altitude</code> (ASL), <code>AltitudeAGL</code> (true height),
+  <code>Speed</code>, <code>VerticalSpeed</code>, <code>HorizontalSpeed</code>, <code>Mass</code>, <code>TWR</code>, <code>MaxTWR</code></td></tr>
+<tr><td>Fuel</td><td><code>Fuel</code> (0..1), <code>FuelAmount</code>, <code>FuelCapacity</code></td></tr>
+<tr><td>Orbit</td><td><code>Apoapsis</code>, <code>Periapsis</code>, <code>Eccentricity</code>, <code>Escaping</code> (0/1)</td></tr>
+<tr><td>Attitude</td><td><code>Heading</code> (-180..180, 0 = zenith), <code>AngularVel</code> (deg/s)</td></tr>
+<tr><td>Environment</td><td><code>Gravity</code>, <code>AirDensity</code>, <code>DynamicPressure</code>, <code>AtmosphereTop</code></td></tr>
+</table>
+
+<h2>Expressions</h2>
+<p><code>+ - * / % ^</code>, parentheses, comparisons (true=1 / false=0); functions
+<code>min max abs sqrt floor ceil round clamp pow sin cos tan asin acos atan atan2 log ln</code>
+(degrees); constants <code>pi e</code>. Invalid values abort the program with a message.</p>
+
+<h2>Code view</h2>
+<p>One statement per line, <code>end</code> closes containers, <code>#</code> starts a comment.
+<b>Ctrl+Enter</b> applies the code back to blocks.</p>
+<pre>on start
+  wait 1
+  set throttle to 1
+  while AltitudeAGL &lt;= 10000
+    if TWR &gt;= 1.2
+      set throttle to Throttle - 0.05
+    else
+      set throttle to Throttle + 0.05
+    end
+    wait 0.2
+  end
+  turn left 10 in 2
+end</pre>
+
+<h2>Hotkeys (Settings -> Controls -> SFS Vizzy)</h2>
+<p><b>F8</b> open this page - <b>R</b> run - <b>P</b> stop - <b>J</b> MechJeb panel. All rebindable and saved with the game settings.</p>
+
+<h2>Troubleshooting</h2>
+<p>Page won't open: check Player.log for <code>Web UI listening on http://127.0.0.1:xxxx/</code>.
+Red dot: the game server is not running; restart the game and press F8.
+RUN says no rocket: be in the flight scene. The server binds 127.0.0.1 only, no firewall prompt.</p>
+`;
+
+function openHelp() { helpModal.hidden = false; }
+function closeHelp() { helpModal.hidden = true; }
+document.getElementById("btnHelp").addEventListener("click", openHelp);
+document.getElementById("btnHelpClose").addEventListener("click", closeHelp);
+helpModal.addEventListener("click", (e) => { if (e.target === helpModal) closeHelp(); });
+document.getElementById("helpBody").innerHTML = HELP_HTML;
+
+
+/* ------------------------------------------------------------------ */
+/* UI panels (left palette / bottom telemetry)                         */
+/* ------------------------------------------------------------------ */
+
+const UI_PREF_KEY = "sfsvizzy.ui.v1";
+let uiPref = {};
+try { uiPref = JSON.parse(localStorage.getItem(UI_PREF_KEY) || "{}"); } catch (_) {}
+
+function applyUiPref() {
+  document.body.classList.toggle("left-hidden", !!uiPref.leftHidden);
+  document.body.classList.toggle("bottom-hidden", !!uiPref.bottomHidden);
+}
+function saveUiPref() {
+  try { localStorage.setItem(UI_PREF_KEY, JSON.stringify(uiPref)); } catch (_) {}
+}
+
+const btnPal = document.getElementById("btnTogglePalette");
+if (btnPal) btnPal.addEventListener("click", () => {
+  uiPref.leftHidden = !uiPref.leftHidden;
+  saveUiPref();
+  applyUiPref();
+});
+const btnInf = document.getElementById("btnToggleBottom");
+if (btnInf) btnInf.addEventListener("click", () => {
+  uiPref.bottomHidden = !uiPref.bottomHidden;
+  saveUiPref();
+  applyUiPref();
+});
+const btnInfHide = document.getElementById("btnBottomHide");
+if (btnInfHide) btnInfHide.addEventListener("click", () => {
+  uiPref.bottomHidden = true;
+  saveUiPref();
+  applyUiPref();
+});
+applyUiPref();
+
+/* ------------------------------------------------------------------ */
+/* Boot                                                               */
+/* ------------------------------------------------------------------ */
+
+document.getElementById("foot-url").textContent = location.origin;
+
+(function boot() {
+  let loaded = null;
+  try {
+    const raw = localStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY_OLD);
+    if (raw) loaded = JSON.parse(raw);
+  } catch (_) {}
+
+  if (loaded && (Array.isArray(loaded.launches) || Array.isArray(loaded.main))) {
+    program = loaded;
+    ensureLaunches();
+    render();
+    addLog("restored local program");
+  } else {
+    render();
+  }
+
+  connect();
+})();
+</script>
+</body>
+</html>
