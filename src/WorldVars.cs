@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using SFS.Parts.Modules;
 using SFS.World;
+using SFS.World.Maps;
 
 namespace SFSVizzyMod
 {
@@ -80,6 +81,13 @@ namespace SFSVizzyMod
             }
             catch (Exception) { }
 
+            // 先给默认值：发射台上 TryCreateOrbit 会失败，变量留空会让程序报
+            // unknown variable 直接中止。没有轨道时远拱点按当前高度算，垂直上升也说得通
+            vars["Apoapsis"] = loc.Height;
+            vars["Periapsis"] = 0.0;
+            vars["Eccentricity"] = 0.0;
+            vars["Escaping"] = 0.0;
+
             // 轨道根数：地表静止时 TryCreateOrbit 会失败，跳过即可
             try
             {
@@ -116,6 +124,52 @@ namespace SFSVizzyMod
                 vars["Fuel"] = capacity > 0.0 ? Math.Min(1.0, Math.Max(0.0, amount / capacity)) : 0.0;
             }
             catch (Exception) { }
+
+            vars["Radius"] = loc.Radius;
+            vars["PlanetRadius"] = loc.planet != null ? loc.planet.Radius : 0.0;
+
+            // 目标导航：距离/方位/经度，未选目标时为 0
+            try
+            {
+                SelectableObject target = GetTarget();
+                if (target != null)
+                {
+                    Location tl = target.Location;
+                    Double2 delta;
+                    if (tl.planet == loc.planet) delta = tl.position - loc.position;
+                    else
+                    {
+                        double t = WorldTime.main != null ? WorldTime.main.worldTime : 0.0;
+                        delta = tl.GetSolarSystemPosition(t) - loc.GetSolarSystemPosition(t);
+                    }
+                    vars["TargetDistance"] = delta.magnitude;
+                    vars["TargetBearing"] = NormalizeAngle(Math.Atan2(delta.x, delta.y) * 180.0 / Math.PI - ZenithAngle(loc));
+                    vars["TargetLongitude"] = NormalizeAngle(tl.position.AngleRadians * 180.0 / Math.PI);
+                    vars["HasTarget"] = 1.0;
+                }
+            }
+            catch (Exception) { }
+        }
+
+        public static SelectableObject GetTarget()
+        {
+            try { return Map.navigation != null ? Map.navigation.target : null; }
+            catch (Exception) { return null; }
+        }
+
+        public static double TargetWorldAngle(Location loc)
+        {
+            SelectableObject target = GetTarget();
+            if (target == null) return double.NaN;
+            Location tl = target.Location;
+            Double2 delta;
+            if (tl.planet == loc.planet) delta = tl.position - loc.position;
+            else
+            {
+                double t = WorldTime.main != null ? WorldTime.main.worldTime : 0.0;
+                delta = tl.GetSolarSystemPosition(t) - loc.GetSolarSystemPosition(t);
+            }
+            return Math.Atan2(delta.x, delta.y) * 180.0 / Math.PI;
         }
 
         // 归一化到 (-180, 180]。

@@ -20,7 +20,19 @@ namespace SFSVizzyMod
         public const string SetVar = "set_var";         // a = 变量名, b = 表达式
         public const string Log = "log";                // a = 文本，支持 {表达式} 插值
         public const string Engine = "engine";          // dir = on/off，a = all / 序号 / stage N
-        public const string Parachute = "parachute";    // dir = deploy/cut，a = all / 序号 / stage N
+        public const string Parachute = "parachute";
+        public const string Deploy = "deploy";
+        public const string Wheel = "wheel";
+        public const string Hold = "hold";
+        public const string Warp = "warp";
+        public const string Call = "call";
+        public const string Continue = "continue";
+        public const string Toggle = "toggle";
+        public const string Random = "random";
+        public const string RcsMove = "rcs_move";
+        public const string Burn = "burn";               // a = dv，dir = prograde/retrograde
+        public const string Circularize = "circularize"; // a = 容差米
+        public const string Match = "match";             // a = 容差 m/s        // dir = up/down/left/right，a = 秒              // a = 函数名              // a = 目标档位，0/空 = 关闭              // dir = vspeed/altitude，a = 目标，b = 秒            // dir = on/off/power/steer，a = 选择器，b = 值，title = 秒          // dir = deploy/retract，a = all / 序号 / stage N    // dir = deploy/cut，a = all / 序号 / stage N
         public const string Dialog = "dialog";          // title/a = 文本，dir = message/number，var = 变量名，b = 超时秒
         public const string If = "if";                  // a/op/b = 条件, then/els = 分支
         public const string While = "while";            // a/op/b = 条件, body = 循环体
@@ -32,6 +44,7 @@ namespace SFSVizzyMod
     // 一块积木。if/while/repeat 带 then/els/body 子容器，其余为空。
     public class Block
     {
+        public int id;            // 浏览器里的积木编号，用来定位错误
         public string kind = Kinds.Wait;
         public string a = "";        // 主表达式 / 文本 / 变量名
         public string op = "<=";     // 条件运算符（仅 if/while/wait_until）
@@ -61,6 +74,12 @@ namespace SFSVizzyMod
     }
 
     // 整个程序：多个 ON START + 高度触发事件 + 变量初值。
+    public class FunctionDef
+    {
+        public string name = "";
+        public List<Block> blocks = new List<Block>();
+    }
+
     public class GameEvent
     {
         public string type = "key";   // key / stage / landed / dock
@@ -77,6 +96,7 @@ namespace SFSVizzyMod
         public List<LaunchEvent> launches = new List<LaunchEvent>();
         public List<Trigger> triggers = new List<Trigger>();
         public List<GameEvent> events = new List<GameEvent>();
+        public List<FunctionDef> functions = new List<FunctionDef>();
         public Dictionary<string, double> variables = new Dictionary<string, double>();
 
         // 取实际要执行的入口列表；没有 launches 的老存档回退成单个入口。

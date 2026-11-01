@@ -1,0 +1,33 @@
+# ===== Demo 5: time warp and delta-v burns =====
+# How to run: get into orbit first (above the atmosphere), then press RUN.
+# Shows warp (time acceleration) and burn dv (stops by speed change).
+
+on start
+  log "demo5: cruise start, apoapsis={Apoapsis}"
+
+  # ---- 1 accelerate time (the rocket races past the planet) ----
+  log "demo5: warp 3"
+  warp 3
+  wait 5
+  log "demo5: warp done, apoapsis={Apoapsis}"
+
+  # ---- 2 drop back to realtime physics ----
+  warp 0
+  log "demo5: back to realtime"
+
+  # ---- 3 prograde burn, 50 m/s ----
+  log "demo5: burn prograde 50"
+  burn dv 50 prograde
+  log "demo5: burn done, apoapsis={Apoapsis} speed={Speed}"
+
+  # ---- 4 retrograde burn, 20 m/s ----
+  burn dv 20 retrograde
+  log "demo5: retrograde done, speed={Speed}"
+
+  log "demo5: cruise end"
+end
+
+# also shows an event: log a line every time you stage
+on stage
+  log "demo5: staged at speed={Speed}"
+end

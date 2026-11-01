@@ -1,0 +1,37 @@
+# ===== Demo 1: launch to orbit =====
+# How to run: on the pad, press RUN. It lifts off, pitches over,
+# raises the apoapsis and circularizes by itself.
+# Requires: MaxTWR > 1, otherwise the apoapsis will not rise.
+# Watch the CONSOLE panel at the bottom for every step.
+
+on start
+  set target = 120000        # target apoapsis altitude (m)
+
+  # ---- 1 liftoff ----
+  log "demo1: liftoff"
+  throttle on
+  set throttle to 1
+  wait until AltitudeAGL > 300
+  log "demo1: 300m reached, apoapsis = {Apoapsis}"
+
+  # ---- 2 raise the apoapsis: pitch over as altitude grows ----
+  # SFS angle: 0 = straight up, 90 = horizontal. frac 0->1 gives 0->85 deg
+  while Apoapsis < target
+    set frac = clamp(AltitudeAGL / 45000, 0, 1)
+    turn to (85 * frac) in 0.5
+    set throttle to 1
+    wait 0.5
+  end
+  log "demo1: apoapsis reached = {Apoapsis}"
+
+  # ---- 3 level out and let the periapsis climb ----
+  turn to 90 in 3
+  set throttle to 0.25
+  wait 10
+  log "demo1: coasting, ap={Apoapsis} pe={Periapsis}"
+
+  # ---- 4 circularize ----
+  log "demo1: circularize start"
+  circularize 3000
+  log "demo1: done. ap={Apoapsis} pe={Periapsis}"
+end

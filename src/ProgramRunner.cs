@@ -35,11 +35,19 @@ namespace SFSVizzyMod
         private readonly List<TriggerState> triggerStates = new List<TriggerState>();
         private int pendingLaunches;
         private readonly List<EventState> eventStates = new List<EventState>();
+        private readonly Dictionary<string, FunctionDef> functions = new Dictionary<string, FunctionDef>();
+        private int callDepth;
+        private int crashSerial;
+        private float wheelDrive;
+        private float wheelDriveUntil;
+        private Vector2 rcsDrive;
+        private float rcsUntil;
 
         // 每个 ON START / 触发器各自一份，break 不会串到别的并行脚本。
         private sealed class RunContext
         {
             public bool breakFlag;
+            public bool continueFlag;
         }
 
         private sealed class EventState
@@ -49,6 +57,8 @@ namespace SFSVizzyMod
             public int lastStage;
             public bool lastLanded;
             public bool lastDock;
+            public int lastCrash;
+            public Rocket lastRocket;
         }
 
         // 高度每帧只采样一次（多个触发器 / 多个积木共用），避免重复查询地形高度
@@ -105,6 +115,23 @@ namespace SFSVizzyMod
             for (int i = 0; i < triggerStates.Count; i++)
                 extraRoutines.Add(StartCoroutine(WatchTrigger(triggerStates[i], i)));
 
+            functions.Clear();
+            if (data.functions != null)
+                for (int i = 0; i < data.functions.Count; i++)
+                {
+                    FunctionDef f = data.functions[i];
+                    if (f != null && !string.IsNullOrEmpty(f.name)) functions[f.name] = f;
+                }
+
+            functions.Clear();
+            if (data.functions != null)
+                for (int i = 0; i < data.functions.Count; i++)
+                {
+                    FunctionDef f = data.functions[i];
+                    if (f != null && !string.IsNullOrEmpty(f.name)) functions[f.name] = f;
+                }
+            callDepth = 0;
+
             eventStates.Clear();
             if (data.events != null)
             {
@@ -117,7 +144,9 @@ namespace SFSVizzyMod
                         cfg = ev,
                         lastStage = StageCount(),
                         lastLanded = IsLanded(),
-                        lastDock = IsDocked()
+                        lastDock = IsDocked(),
+                        lastCrash = crashSerial,
+                        lastRocket = WorldVars.GetPlayerRocket()
                     };
                     eventStates.Add(st);
                     extraRoutines.Add(StartCoroutine(WatchEvent(st)));
@@ -148,7 +177,10 @@ namespace SFSVizzyMod
             bool wasRunning = IsRunning;
             IsRunning = false;
             if (DialogUI.main != null) DialogUI.main.Close(false);
+            if (WorldTime.main != null && WorldTime.main.timewarpIndex > 0) WorldTime.main.StopTimewarp(false);
             triggerStates.Clear();
+            functions.Clear();
+            callDepth = 0;
             eventStates.Clear();
             pendingLaunches = 0;
             ReleaseControls();
@@ -193,9 +225,12 @@ namespace SFSVizzyMod
             catch (Exception) { }
         }
 
+        private Block currentBlock;
+
         private void Fail(string msg)
         {
             Print("FAILED: " + msg);
+            if (Bridge.main != null) Bridge.main.SendError(msg, currentBlock);
             if (MsgDrawer.main != null) MsgDrawer.main.Log("SFS Vizzy: " + msg, true);
             Finish("Program aborted");
         }
@@ -222,6 +257,14 @@ namespace SFSVizzyMod
                 Print("--- All ON START scripts finished; " + armed + " altitude trigger(s) armed ---");
                 yield break;
             }
+
+            // 有事件监听就保持运行，否则按一次键、分一次级程序早就退出了
+            if (eventStates.Count > 0)
+            {
+                Print("--- Waiting for events (" + eventStates.Count + "); press STOP to end ---");
+                yield break;
+            }
+
             Finish("--- Program finished ---");
         }
 
@@ -285,6 +328,27 @@ namespace SFSVizzyMod
                             st.lastDock = v;
                         }
                         break;
+
+                    case "crash":
+                    {
+                        if (crashSerial != st.lastCrash)
+                        {
+                            fire = true;
+                            st.lastCrash = crashSerial;
+                        }
+                        else
+                        {
+                            // 部件逐个爆、关节断裂时 DestroyRocket 不一定调用，玩家会被切到残骸
+                            Rocket cur = WorldVars.GetPlayerRocket();
+                            if (cur != st.lastRocket)
+                            {
+                                fire = true;
+                                st.lastRocket = cur;
+                                Print("ROCKET CHANGED: " + (cur == null ? "null" : "child rocket"));
+                            }
+                        }
+                        break;
+                    }
                 }
 
                 if (fire && !(st.cfg.once && st.fired))
@@ -436,6 +500,9 @@ namespace SFSVizzyMod
                 yield return RunBlock(b, ctx);
                 if (!IsRunning) yield break;
 
+                // continue 只上抛，由最近的循环消费
+                if (ctx.continueFlag) yield break;
+
                 // break 只中止当前容器，由最近的 while/repeat 消费
                 if (ctx.breakFlag) yield break;
 
@@ -449,6 +516,7 @@ namespace SFSVizzyMod
 
         private IEnumerator RunBlock(Block b, RunContext ctx)
         {
+            currentBlock = b;
             if (b == null || string.IsNullOrEmpty(b.kind)) yield break;
 
             switch (b.kind)
@@ -563,6 +631,10 @@ namespace SFSVizzyMod
                         case "down": worldTarget = WorldVars.ZenithAngle(loc) + 180.0; break;
                         case "prograde": worldTarget = WorldVars.VelocityAngle(loc); break;
                         case "retrograde": worldTarget = WorldVars.VelocityAngle(loc) + 180.0; break;
+                        case "target":
+                            if (WorldVars.GetTarget() == null) { Fail("turn to target: no target selected in map"); yield break; }
+                            worldTarget = WorldVars.TargetWorldAngle(loc);
+                            break;
                         default:
                         {
                             double rel = Eval(b.a);
@@ -598,6 +670,46 @@ namespace SFSVizzyMod
 
                 case Kinds.Parachute:
                     yield return ParachuteBlock(b);
+                    break;
+
+                case Kinds.Deploy:
+                {
+                    Rocket r = WorldVars.GetPlayerRocket();
+                    if (r == null) { Fail("deploy: no rocket"); yield break; }
+                    DeployBlock(r, b);
+                    break;
+                }
+
+                case Kinds.Wheel:
+                    yield return WheelBlock(b);
+                    break;
+
+                case Kinds.Hold:
+                    yield return HoldBlock(b);
+                    break;
+
+                case Kinds.Warp:
+                    WarpBlock(b);
+                    break;
+
+                case Kinds.Call:
+                    yield return CallBlock(b, ctx);
+                    break;
+
+                case Kinds.RcsMove:
+                    yield return RcsMoveBlock(b);
+                    break;
+
+                case Kinds.Burn:
+                    yield return BurnBlock(b);
+                    break;
+
+                case Kinds.Circularize:
+                    yield return CircularizeBlock(b);
+                    break;
+
+                case Kinds.Match:
+                    yield return MatchBlock(b);
                     break;
 
                 case Kinds.Log:
@@ -641,6 +753,7 @@ namespace SFSVizzyMod
                         yield return RunList(b.body, ctx);
                         if (!IsRunning) yield break;
                         if (ctx.breakFlag) { ctx.breakFlag = false; break; }
+                        if (ctx.continueFlag) { ctx.continueFlag = false; yield return null; continue; }
                         yield return null;
                         if (++guard > 100000) { Fail("while: too many iterations (100000)"); yield break; }
                     }
@@ -658,6 +771,7 @@ namespace SFSVizzyMod
                         yield return RunList(b.body, ctx);
                         if (!IsRunning) yield break;
                         if (ctx.breakFlag) { ctx.breakFlag = false; break; }
+                        if (ctx.continueFlag) { ctx.continueFlag = false; yield return null; continue; }
                         yield return null;
                     }
                     break;
@@ -666,6 +780,28 @@ namespace SFSVizzyMod
                 case Kinds.Break:
                     ctx.breakFlag = true;
                     break;
+
+                case Kinds.Continue:
+                    ctx.continueFlag = true;
+                    break;
+
+                case Kinds.Toggle:
+                {
+                    string name = (b.a ?? "").Trim();
+                    if (name.Length == 0) { Fail("toggle: variable name required"); yield break; }
+                    double cur;
+                    userVars.TryGetValue(name, out cur);
+                    userVars[name] = cur > 0.5 ? 0.0 : 1.0;
+                    break;
+                }
+
+                case Kinds.Random:
+                {
+                    string name = (b.a ?? "").Trim();
+                    if (name.Length == 0) { Fail("random: variable name required"); yield break; }
+                    userVars[name] = UnityEngine.Random.value;
+                    break;
+                }
 
                 case Kinds.Fail:
                 {
@@ -711,13 +847,18 @@ namespace SFSVizzyMod
             }
             if (!IsRunning) yield break;
 
-            double initial = WorldVars.NormalizeAngle(targetDeg - r.GetRotation());
-            double rate = duration > 0.05 ? Math.Abs(initial) / duration : 0.0;
+            // GetRotation 是推力方向，rb2d.rotation 是刚体角度，两者差一个固定偏移
+            double offset = WorldVars.NormalizeAngle(r.GetRotation() - r.rb2d.rotation);
+            double bodyTarget = WorldVars.NormalizeAngle(targetDeg - offset);
+            double initial = WorldVars.NormalizeAngle(bodyTarget - r.rb2d.rotation);
+            double maxRate = duration > 0.05 ? Math.Abs(initial) / duration : 720.0;
+            maxRate = Math.Max(45.0, maxRate);
             double deadline = Time.unscaledTime + Math.Max(30.0, duration * 2.0 + 10.0);
+            float nextLog = 0f;
 
             while (IsRunning)
             {
-                double err = WorldVars.NormalizeAngle(targetDeg - r.GetRotation());
+                double err = WorldVars.NormalizeAngle(bodyTarget - r.rb2d.rotation);
                 if (Math.Abs(err) <= 0.4)
                 {
                     r.rb2d.angularVelocity = 0f;
@@ -731,13 +872,18 @@ namespace SFSVizzyMod
                     yield break;
                 }
 
-                double step = rate > 0.0
-                    ? Math.Min(Math.Abs(err), rate * Math.Max(1e-3, Time.deltaTime))
-                    : Math.Abs(err);
-
+                double step = Math.Min(Math.Abs(err), maxRate * Math.Max(1e-3, Time.deltaTime));
                 r.rb2d.MoveRotation(r.rb2d.rotation + (float)(Math.Sign(err) * step));
                 r.rb2d.angularVelocity = 0f;
                 r.arrowkeys.turnAxis.Value = 0f;
+
+                if (Time.unscaledTime >= nextLog)
+                {
+                    nextLog = Time.unscaledTime + 1f;
+                    Print("TURN: target=" + targetDeg.ToString("0") + " body=" + bodyTarget.ToString("0")
+                        + " cur=" + r.rb2d.rotation.ToString("0") + " err=" + err.ToString("0.0"));
+                }
+
                 yield return null;
             }
         }
@@ -855,7 +1001,7 @@ namespace SFSVizzyMod
         {
             EngineModule[] engines = r.partHolder.GetModules<EngineModule>();
             int[] idx = SelectModules<EngineModule>(r, b.a);
-            if (idx.Length == 0) { Fail("engine: no match for '" + (b.a ?? "all") + "'"); return; }
+            if (idx.Length == 0) { Print("engine: no match for '" + (b.a ?? "all") + "' (skipped)"); return; }
 
             bool on = !string.Equals(b.dir, "off", StringComparison.OrdinalIgnoreCase);
             for (int i = 0; i < idx.Length; i++)
@@ -871,7 +1017,7 @@ namespace SFSVizzyMod
 
             ParachuteModule[] chutes = r.partHolder.GetModules<ParachuteModule>();
             int[] idx = SelectModules<ParachuteModule>(r, b.a);
-            if (idx.Length == 0) { Fail("parachute: no match for '" + (b.a ?? "all") + "'"); yield break; }
+            if (idx.Length == 0) { Print("parachute: no match for '" + (b.a ?? "all") + "' (skipped)"); yield break; }
 
             bool cut = string.Equals(b.dir, "cut", StringComparison.OrdinalIgnoreCase);
             for (int i = 0; i < idx.Length; i++)
@@ -893,6 +1039,413 @@ namespace SFSVizzyMod
             }
 
             Print("PARACHUTE: " + (b.a ?? "all") + " -> " + (cut ? "cut" : "deploy") + " (" + idx.Length + ")");
+        }
+
+        private double SpeedVar() { double v; return vars.TryGetValue("Speed", out v) ? v : 0.0; }
+
+        private IEnumerator BurnBlock(Block b)
+        {
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) { Fail("burn: no rocket"); yield break; }
+            yield return WaitRealtime();
+            if (!IsRunning) yield break;
+
+            double dv = Eval(string.IsNullOrEmpty(b.a) ? "0" : b.a);
+            if (!IsRunning) yield break;
+            if (dv <= 0.0) { Print("BURN: dv <= 0, skipped"); yield break; }
+
+            bool retro = string.Equals(b.dir, "retrograde", StringComparison.OrdinalIgnoreCase);
+            Location loc = r.location.Value;
+            double angle = retro ? WorldVars.VelocityAngle(loc) + 180.0 : WorldVars.VelocityAngle(loc);
+            yield return TurnTo(r, angle, 1.5);
+            if (!IsRunning) yield break;
+
+            double startSpeed = SpeedVar();
+            double targetSpeed = retro ? Math.Max(0.0, startSpeed - dv) : startSpeed + dv;
+            double maxTwr = vars.ContainsKey("MaxTWR") ? vars["MaxTWR"] : 1.0;
+            double accel = Math.Max(0.2, maxTwr * 9.81);
+            float timeout = (float)Math.Min(240.0, 15.0 + dv / accel * 4.0);
+            float end = Time.time + timeout;
+
+            r.throttle.throttlePercent.Value = 1f;
+            r.throttle.throttleOn.Value = true;
+
+            while (IsRunning && Time.time < end)
+            {
+                RefreshVars();
+                double sp = SpeedVar();
+                if (!retro && sp >= targetSpeed) break;
+                if (retro && sp <= targetSpeed) break;
+                yield return null;
+            }
+
+            r.throttle.throttlePercent.Value = 0f;
+            Print("BURN: " + (retro ? "retro " : "pro ") + dv.ToString("0.#") + " m/s done");
+        }
+
+        private IEnumerator CircularizeBlock(Block b)
+        {
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) { Fail("circularize: no rocket"); yield break; }
+            yield return WaitRealtime();
+            if (!IsRunning) yield break;
+
+            double tol = Eval(string.IsNullOrEmpty(b.a) ? "3000" : b.a);
+            if (!IsRunning) yield break;
+            if (tol <= 0.0) tol = 3000.0;
+
+            // 没入轨就圆化等于原地满油门烧到 2 km/s，先拦下来
+            RefreshVars();
+            double apoNow = vars.ContainsKey("Apoapsis") ? vars["Apoapsis"] : 0.0;
+            if (apoNow < 2000.0)
+            {
+                Fail("circularize: not in orbit (apoapsis " + apoNow.ToString("0") + " m < 2000 m)");
+                yield break;
+            }
+
+            // 圆轨道速度 v = sqrt(mu / r)，mu = g * R^2；按当前速度决定顺/逆行
+            for (int pass = 0; pass < 4 && IsRunning; pass++)
+            {
+                RefreshVars();
+                double radius = vars.ContainsKey("Radius") ? vars["Radius"] : 0.0;
+                double planetR = vars.ContainsKey("PlanetRadius") ? vars["PlanetRadius"] : 0.0;
+                double g = vars.ContainsKey("Gravity") ? vars["Gravity"] : 0.0;
+                if (radius <= 0.0 || planetR <= 0.0 || g <= 0.0) { Fail("circularize: no planet data"); yield break; }
+
+                double vCirc = Math.Sqrt(g * planetR * planetR / radius);
+                double speed = SpeedVar();
+                double diff = vCirc - speed;
+
+                Print("CIRC: pass " + (pass + 1) + " v=" + speed.ToString("0.0")
+                    + " vCirc=" + vCirc.ToString("0.0") + " diff=" + diff.ToString("0.0"));
+
+                if (Math.Abs(diff) <= Math.Max(0.5, tol / 1000.0)) break;
+
+                bool prograde = diff > 0.0;
+                Location loc = r.location.Value;
+                double angle = prograde ? WorldVars.VelocityAngle(loc) : WorldVars.VelocityAngle(loc) + 180.0;
+                yield return TurnTo(r, angle, 1.5);
+                if (!IsRunning) yield break;
+
+                r.throttle.throttlePercent.Value = 1f;
+                r.throttle.throttleOn.Value = true;
+                float end = Time.time + 60f;
+
+                while (IsRunning && Time.time < end)
+                {
+                    RefreshVars();
+                    double sp = SpeedVar();
+                    if ((prograde && sp >= vCirc) || (!prograde && sp <= vCirc)) break;
+                    yield return null;
+                }
+
+                r.throttle.throttlePercent.Value = 0f;
+                if (!IsRunning) yield break;
+            }
+        }
+
+        private IEnumerator MatchBlock(Block b)
+        {
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) { Fail("match: no rocket"); yield break; }
+            yield return WaitRealtime();
+            if (!IsRunning) yield break;
+
+            SelectableObject target = WorldVars.GetTarget();
+            if (target == null) { Fail("match: no target selected in map"); yield break; }
+
+            double tol = Eval(string.IsNullOrEmpty(b.a) ? "1" : b.a);
+            if (!IsRunning) yield break;
+            if (tol <= 0.0) tol = 1.0;
+
+            Location loc = r.location.Value;
+            Location tl = target.Location;
+            Double2 rel = tl.GetSolarSystemPosition(WorldTime.main != null ? WorldTime.main.worldTime : 0.0)
+                - loc.GetSolarSystemPosition(WorldTime.main != null ? WorldTime.main.worldTime : 0.0);
+            double relSpeed = tl.planet == loc.planet
+                ? (tl.velocity - loc.velocity).magnitude
+                : rel.magnitude;
+
+            if (relSpeed <= tol) { Print("MATCH: already matched"); yield break; }
+
+            double angle = Math.Atan2(-(tl.velocity - loc.velocity).x, -(tl.velocity - loc.velocity).y) * 180.0 / Math.PI;
+            yield return TurnTo(r, angle, 1.5);
+            if (!IsRunning) yield break;
+
+            r.throttle.throttlePercent.Value = 1f;
+            r.throttle.throttleOn.Value = true;
+            float end = Time.time + 60f;
+
+            while (IsRunning && Time.time < end)
+            {
+                RefreshVars();
+                loc = r.location.Value;
+                Double2 relNow = tl.velocity - loc.velocity;
+                if (relNow.magnitude <= tol) break;
+                yield return null;
+            }
+
+            r.throttle.throttlePercent.Value = 0f;
+            Print("MATCH: done");
+        }
+
+        private void LateUpdate()
+        {
+            if (!IsRunning) return;
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) return;
+
+            if (Time.time < wheelDriveUntil) r.arrowkeys.turnAxis.Value = wheelDrive;
+
+            if (Time.time < rcsUntil)
+            {
+                r.arrowkeys.horizontalAxis.Value = rcsDrive;
+                r.arrowkeys.verticalAxis.Value = Vector2.zero;
+            }
+        }
+
+        public void NotifyCrash(Rocket rocket, string reason)
+        {
+            // 只认玩家这艘船；别的残骸解体不触发
+            Rocket current = WorldVars.GetPlayerRocket();
+            if (rocket != null && current != null && rocket != current) return;
+
+            crashSerial++;
+            Print("EVENT: crash (" + reason + ")");
+        }
+
+        private IEnumerator RcsMoveBlock(Block b)
+        {
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) { Fail("rcs: no rocket"); yield break; }
+
+            float duration = 2f;
+            if (!string.IsNullOrEmpty(b.a)) float.TryParse(b.a, out duration);
+            if (duration <= 0f) duration = 2f;
+
+            // 用刚体旋转直接算世界方向，别依赖 transform（根节点不转）
+            float rad = (r.rb2d != null ? r.rb2d.rotation : 0f) * Mathf.Deg2Rad;
+            Vector2 up = new Vector2(-Mathf.Sin(rad), Mathf.Cos(rad));
+            Vector2 right = new Vector2(Mathf.Cos(rad), Mathf.Sin(rad));
+
+            string mode = (b.dir ?? "up").ToLowerInvariant();
+            Vector2 dir;
+            if (mode == "down") dir = -up;
+            else if (mode == "right") dir = right;
+            else if (mode == "left") dir = -right;
+            else dir = up;
+
+            Print("RCS dir " + mode + " = (" + dir.x.ToString("0.00") + "," + dir.y.ToString("0.00")
+                + ") rot=" + (r.rb2d != null ? r.rb2d.rotation.ToString("0.#") : "?"));
+
+            r.arrowkeys.rcs.Value = true;
+            rcsDrive = dir;
+            rcsUntil = Time.time + duration;
+
+            float end = Time.time + duration;
+            while (IsRunning && Time.time < end) yield return null;
+
+            rcsUntil = 0f;
+            rcsDrive = Vector2.zero;
+            r.arrowkeys.horizontalAxis.Value = Vector2.zero;
+            r.arrowkeys.verticalAxis.Value = Vector2.zero;
+            r.arrowkeys.rcs.Value = false;
+            Print("RCS: " + mode + " for " + duration.ToString("0.#") + "s");
+        }
+
+        private IEnumerator CallBlock(Block b, RunContext ctx)
+        {
+            string name = (b.a ?? "").Trim();
+            FunctionDef f;
+            if (!functions.TryGetValue(name, out f))
+            {
+                Fail("call: function '" + name + "' not found");
+                yield break;
+            }
+            if (callDepth >= 32)
+            {
+                Fail("call: recursion too deep (32)");
+                yield break;
+            }
+
+            callDepth++;
+            yield return RunList(f.blocks ?? new List<Block>(), ctx);
+            callDepth--;
+            if (!IsRunning) yield break;
+        }
+
+        private void WarpBlock(Block b)
+        {
+            if (WorldTime.main == null) { Fail("warp: no world time"); return; }
+
+            int target = 0;
+            if (!string.IsNullOrEmpty(b.a)) int.TryParse(b.a.Trim(), out target);
+
+            if (target <= 0)
+            {
+                WorldTime.main.StopTimewarp(false);
+                Print("WARP: off");
+                return;
+            }
+
+            int guard = 0;
+            while (IsRunning && WorldTime.main.timewarpIndex < target && guard++ < 20)
+            {
+                int before = WorldTime.main.timewarpIndex;
+                WorldTime.main.AccelerateTime();
+                if (WorldTime.main.timewarpIndex == before) break;
+            }
+            while (IsRunning && WorldTime.main.timewarpIndex > target && guard++ < 40)
+            {
+                int before = WorldTime.main.timewarpIndex;
+                WorldTime.main.DecelerateTime();
+                if (WorldTime.main.timewarpIndex == before) break;
+            }
+
+            Print("WARP: index " + WorldTime.main.timewarpIndex + " (target " + target + ")");
+        }
+
+        private IEnumerator WaitRealtime()
+        {
+            bool warned = false;
+            while (IsRunning && WorldTime.main != null && !WorldTime.main.realtimePhysics.Value)
+            {
+                if (!warned) { Print("waiting for realtime physics (exit timewarp)"); warned = true; }
+                yield return null;
+            }
+        }
+
+        private IEnumerator HoldBlock(Block b)
+        {
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) { Fail("hold: no rocket"); yield break; }
+            yield return WaitRealtime();
+            if (!IsRunning) yield break;
+
+            bool altitudeMode = string.Equals(b.dir, "altitude", StringComparison.OrdinalIgnoreCase);
+            double target = Eval(string.IsNullOrEmpty(b.a) ? "0" : b.a);
+            if (!IsRunning) yield break;
+
+            float duration = 10f;
+            if (!string.IsNullOrEmpty(b.b)) float.TryParse(b.b, out duration);
+            if (duration <= 0f) duration = 10f;
+
+            // 垂直速度环：误差 m/s -> 油门修正；前馈用 1/MaxTWR 估算悬停油门
+            double kp = 0.05, ki = 0.0015, kd = 0.02;
+            double integral = 0.0, prev = 0.0;
+            bool first = true;
+            float nextHoldLog = 0f;
+            float end = Time.time + duration;
+
+            while (IsRunning && Time.time < end)
+            {
+                RefreshVars();
+                double dt = Time.deltaTime;
+                if (dt <= 0.0) { yield return null; continue; }
+
+                // 发动机被关掉时 MaxTWR 会读成 0，先强制点火，否则 PID 永远起不来
+                r.throttle.throttleOn.Value = true;
+
+                double agl = vars.ContainsKey("AltitudeAGL") ? vars["AltitudeAGL"] : 0.0;
+                double vs = vars.ContainsKey("VerticalSpeed") ? vars["VerticalSpeed"] : 0.0;
+                double maxTwr = vars.ContainsKey("MaxTWR") ? vars["MaxTWR"] : 1.0;
+                if (maxTwr < 0.05) maxTwr = 0.7;
+
+                double targetVs = target;
+                if (altitudeMode)
+                {
+                    double altErr = target - agl;
+                    targetVs = Math.Max(-20.0, Math.Min(20.0, altErr * 0.3));
+                }
+
+                double err = targetVs - vs;
+                if (first) { prev = vs; first = false; }
+
+                bool warping = WorldTime.main != null && WorldTime.main.timewarpIndex > 0;
+                if (!warping)
+                {
+                    integral += err * dt;
+                    integral = Math.Max(-10.0, Math.Min(10.0, integral));
+                }
+
+                double deriv = -(vs - prev) / dt;
+                prev = vs;
+
+                double ff = maxTwr > 0.05 ? 1.0 / maxTwr : 0.0;
+                double u = ff + kp * err + ki * integral + kd * deriv;
+                u = Math.Max(0.0, Math.Min(1.0, u));
+
+                r.throttle.throttlePercent.Value = (float)u;
+                if (u > 0.001) r.throttle.throttleOn.Value = true;
+
+                // 每 2 秒打一次，低 TWR 时能看出是物理不够还是控制没输出
+                if (Time.time >= nextHoldLog)
+                {
+                    nextHoldLog = Time.time + 2f;
+                    Print("HOLD t=" + (Time.time - (end - duration)).ToString("0.0")
+                        + " agl=" + agl.ToString("0") + " vs=" + vs.ToString("0.0")
+                        + " u=" + u.ToString("0.00") + " maxTwr=" + maxTwr.ToString("0.00"));
+                }
+
+                yield return null;
+            }
+
+            if (r != null) r.throttle.throttlePercent.Value = 0f;
+            Print("HOLD: " + (altitudeMode ? "altitude " : "vspeed ") + target.ToString("0.#") + " done");
+        }
+
+        private IEnumerator WheelBlock(Block b)
+        {
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) { Fail("wheel: no rocket"); yield break; }
+
+            WheelModule[] wheels = r.partHolder.GetModules<WheelModule>();
+            int[] idx = SelectModules<WheelModule>(r, b.a);
+            if (idx.Length == 0) { Print("wheel: no match for '" + (b.a ?? "all") + "' (skipped)"); yield break; }
+
+            string mode = (b.dir ?? "on").ToLowerInvariant();
+            if (mode == "on" || mode == "off")
+            {
+                bool on = mode == "on";
+                for (int i = 0; i < idx.Length; i++) wheels[idx[i]].on.Value = on;
+                Print("WHEEL: " + (b.a ?? "all") + " -> " + mode + " (" + idx.Length + ")");
+                yield break;
+            }
+
+            double v = Eval(string.IsNullOrEmpty(b.b) ? "0" : b.b);
+            if (!IsRunning) yield break;
+
+            // power/steer 都是驱动：Q/E 轴每帧被输入覆盖，所以用 LateUpdate 抢在物理步之前写
+            float duration = 2f;
+            if (!string.IsNullOrEmpty(b.title)) float.TryParse(b.title, out duration);
+            if (duration <= 0f) duration = 2f;
+
+            for (int i = 0; i < idx.Length; i++) wheels[idx[i]].on.Value = true;
+            wheelDrive = (float)v;
+            wheelDriveUntil = Time.time + duration;
+
+            float end = Time.time + duration;
+            while (IsRunning && Time.time < end) yield return null;
+
+            wheelDrive = 0f;
+            wheelDriveUntil = 0f;
+            if (r != null) r.arrowkeys.turnAxis.Value = 0f;
+            Print("WHEEL: drive " + v.ToString("0.##") + " for " + duration.ToString("0.#") + "s (" + idx.Length + ")");
+        }
+
+        private void DeployBlock(Rocket r, Block b)
+        {
+            ToggleModule[] mods = r.partHolder.GetModules<ToggleModule>();
+            int[] idx = SelectModules<ToggleModule>(r, b.a);
+            if (idx.Length == 0) { Print("deploy: no match for '" + (b.a ?? "all") + "' (skipped)"); return; }
+
+            bool deploy = !string.Equals(b.dir, "retract", StringComparison.OrdinalIgnoreCase);
+            for (int i = 0; i < idx.Length; i++)
+            {
+                ToggleModule m = mods[idx[i]];
+                if (m.state != null) m.state.SetTargetTime(deploy ? 1f : 0f);
+            }
+            Print("DEPLOY: " + (b.a ?? "all") + " -> " + (deploy ? "deploy" : "retract") + " (" + idx.Length + ")");
         }
 
         private static (Part, PolygonData)[] ToRegions(Part[] parts)

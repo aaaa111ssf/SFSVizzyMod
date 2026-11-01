@@ -1,0 +1,10 @@
+# ===== Demo 8: error reporting =====
+# How to run: press RUN. The program fails immediately.
+# A red error bar appears at the top of the browser page, and the
+# offending call block is outlined in red and scrolled into view.
+
+on start
+  log "demo8: about to call a function that does not exist"
+  call this_function_does_not_exist
+  log "demo8: this line never runs"
+end

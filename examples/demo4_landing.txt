@@ -1,0 +1,30 @@
+# ===== Demo 4: landing sequence (legs + parachute + slow descent) =====
+# How to run: start around 200 m above the ground, then press RUN.
+# It deploys the legs, opens the chute and touches down slowly.
+# Best on an airless body (the Moon); the result is cleanest there.
+
+on start
+  log "demo4: landing sequence, alt={AltitudeAGL}"
+
+  # ---- 1 deploy the landing legs ----
+  deploy all
+  wait 1
+  log "demo4: legs deployed"
+
+  # ---- 2 slow descent: hold -3 m/s vertical speed ----
+  hold vspeed -3 6
+  log "demo4: slow descent ok, vs={VerticalSpeed}"
+
+  # ---- 3 open the parachute ----
+  parachute all deploy
+  log "demo4: chute deployed"
+  wait 8
+
+  # ---- 4 last stretch: land almost hovering ----
+  hold vspeed -1 10
+  log "demo4: touchdown! agl={AltitudeAGL} vs={VerticalSpeed}"
+
+  # ---- 5 shut down ----
+  set throttle to 0
+  log "demo4: done"
+end

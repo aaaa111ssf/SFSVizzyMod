@@ -1,0 +1,33 @@
+# ===== Demo 3: rover (wheel drive and steering) =====
+# How to run: build a rover with wheels, put it on the ground, press RUN.
+# Wheels are driven through the Q/E axis; the program takes that axis over
+# every frame, so you do not need to hold the arrow keys.
+
+on start
+  log "demo3: rover start"
+
+  # ---- 1 unfold parts (legs, solar panels; skipped if there are none) ----
+  deploy all
+  wait 2
+
+  # ---- 2 power up ----
+  wheel all on
+  log "demo3: wheels on"
+
+  # ---- 3 drive forward for 5 s ----
+  wheel all power 0.4 5
+  log "demo3: drove forward, speed={HorizontalSpeed}"
+
+  # ---- 4 steer left for 2 s ----
+  wheel all steer 0.6 2
+  log "demo3: steering"
+
+  # ---- 5 drive forward again for 3 s ----
+  wheel all power 0.4 3
+
+  # ---- 6 stop and stow ----
+  wheel all off
+  log "demo3: parked, speed={HorizontalSpeed}"
+  retract all
+  log "demo3: done"
+end

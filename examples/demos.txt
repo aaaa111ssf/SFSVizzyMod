@@ -1,0 +1,81 @@
+SFS Vizzy example programs
+==========================
+
+How to run any of them: press F8 to open the editor, switch to the CODE
+view, paste the file, apply with Ctrl+Enter, then hit Run (or press R).
+Log output shows up in the CONSOLE panel at the bottom of the page.
+
+--------------------------------------------------------------------
+demo1_launch_to_orbit.txt   launch to orbit
+  Where: straight from the pad
+  Shows: liftoff -> pitch over -> raise apoapsis -> level out -> circularize
+  Watch: the apoapsis climbing, then Ap/Pe closing up; circularize picks
+         prograde or retrograde by itself
+  Needs: MaxTWR > 1, otherwise the apoapsis will not rise
+
+demo2_hover_hold.txt        hover and altitude hold (PID)
+  Where: on the pad
+  Shows: climb to 200 m, hold vspeed 0 for 5 s, then hold altitude 200 for 8 s
+  Watch: a HOLD line every 2 s with t / agl / vs / u, so you can see the
+         PID drive vertical speed to zero and pin the altitude
+
+demo3_rover.txt             rover
+  Where: a wheeled rover on the ground
+  Shows: deploy parts -> power on -> drive 5 s -> steer 2 s -> drive 3 s -> stop
+  Watch: no Q/E needed, the program owns the wheel axis; WHEEL log lines
+
+demo4_landing.txt           landing sequence
+  Where: about 200 m above the ground (the Moon is cleanest, no atmosphere)
+  Shows: deploy legs -> settle at -3 m/s -> open the chute -> touch down at -1 m/s
+  Watch: the legs really swing out, the chute goes half open then full,
+         touchdown speed close to 1 m/s
+
+demo5_orbit_cruise.txt      time warp and delta-v burns
+  Where: already in orbit
+  Shows: warp 3 -> back to realtime -> prograde burn 50 m/s -> retro burn 20 m/s
+  Watch: the top-right warp indicator jumps to 3x and back; the burn stops
+         by itself on speed change so it never burns dry; staging logs a line
+
+demo6_functions_events.txt  functions + events + variables
+  Where: on the pad, then press K and stage once
+  Shows: func/call three times, a counter, toggle, random, if/else,
+         repeat with continue and break
+  Watch: count = 0/1/2 in the console, i only prints 1 and 3 (2 is skipped
+         by continue, 4 breaks out); K / stage / landed / crash all log
+
+demo7_target_nav.txt        target navigation
+  Where: select a target in the map first (another ship or a planet), then run
+  Shows: read TargetDistance / TargetBearing -> turn to target -> correct
+         every 5 s
+  Watch: the nose swings towards the target and the logged distance changes
+  Note: with no target selected it fails on purpose and shows the red bar
+
+demo8_error_demo.txt        error reporting
+  Where: any state, just run it
+  Shows: calling a function that does not exist
+  Watch: the program stops at once, a red bar appears at the top of the page,
+         the offending call block gets a red outline and scrolls into view;
+         the final log line never prints
+
+--------------------------------------------------------------------
+mechjeb.txt   multi-mode autopilot (rewritten with the new blocks)
+  Change mode in on start to pick a function:
+    mode 0  do nothing
+    mode 1  launch to orbit (liftoff -> pitch over -> level out -> circularize)
+    mode 2  circularize
+    mode 3  change apsides (target Ap/Pe, up to 12 attempts)
+    mode 4  auto landing (legs -> kill horizontal speed -> -20/-8/-3/-1 m/s)
+    mode 5  parachute landing (chute, then a little thrust for a soft touchdown)
+    mode 6  target navigation (turn to the map target, track 3 times)
+  Tunables: targetAp, targetPe, tol
+
+  What changed from the old version:
+    - circularize is a single block instead of a hand written loop
+    - landing uses four hold vspeed stages instead of hand tuned throttle
+    - legs, parachute and target navigation are new
+    - fixed the old mode 3 bug: expressions have no and operator, so that
+      while line never parsed; it is now while + if + break
+
+landing.txt   hand written proportional landing (no hold block)
+  If you want to understand what the PID is actually doing, this one
+  teaches more than the hold block does

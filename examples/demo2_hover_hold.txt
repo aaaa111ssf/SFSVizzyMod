@@ -1,0 +1,25 @@
+# ===== Demo 2: hover and altitude hold (PID) =====
+# How to run: on the pad, press RUN. It climbs to 200 m, hovers,
+# then holds a fixed altitude.
+# This shows the hold block: first hold vspeed 0, then hold altitude 200.
+
+on start
+  log "demo2: liftoff"
+  throttle on
+  set throttle to 1
+  wait until AltitudeAGL > 200
+  log "demo2: 200m, now hover (vspeed 0) for 5s"
+
+  # ---- hover: drive vertical speed to zero ----
+  hold vspeed 0 5
+  log "demo2: hover done, agl={AltitudeAGL} vs={VerticalSpeed}"
+
+  # ---- altitude hold: stay 200 m above ground ----
+  log "demo2: hold altitude 200 for 8s"
+  hold altitude 200 8
+  log "demo2: altitude hold done, agl={AltitudeAGL} vs={VerticalSpeed}"
+
+  # ---- cut throttle and watch it fall ----
+  log "demo2: throttle off"
+  set throttle to 0
+end

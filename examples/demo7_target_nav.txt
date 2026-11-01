@@ -1,0 +1,29 @@
+# ===== Demo 7: target navigation (map target) =====
+# How to run:
+#   1) select a target in the map (another ship or a planet)
+#   2) press RUN
+# The program turns towards the target and logs distance and bearing.
+
+on start
+  log "demo7: nav start"
+
+  # give the target data a moment to settle
+  wait 2
+  log "demo7: target distance = {TargetDistance} m, bearing = {TargetBearing} deg"
+
+  # ---- turn towards the target ----
+  turn to target
+  log "demo7: pointing at target"
+  wait 5
+
+  # ---- keep tracking (correct every 5 s) ----
+  set n = 0
+  while n < 3
+    turn to target
+    wait 5
+    set n = n + 1
+    log "demo7: still tracking, dist={TargetDistance}"
+  end
+
+  log "demo7: done"
+end

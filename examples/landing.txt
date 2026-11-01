@@ -1,25 +1,28 @@
-# ===== SFS Vizzy 着陆示例（月球/无大气优先）=====
-# 用法：进入下降段后 RUN。确保发动机已点火、RCS 有燃料。
-# 有大气：先加降落伞积木，等速度降下来再运行本程序。
-# 注意：参数必须写在 on start 里（写在外面会被当成另一个并行入口）。
+# ===== SFS Vizzy landing example (best on the Moon / airless bodies) =====
+# How to run: press RUN once you are on the descent. Make sure the engine
+# is lit and the RCS has fuel.
+# With an atmosphere: add a parachute block first, wait for the speed to
+# drop, then run this program.
+# Note: parameters must live inside on start (outside it would be treated
+# as another parallel entry point).
 
 on start
-  # ---- 可调参数 ----
-  set vtouch = 1.2       # 触地目标速度 m/s
-  set profile = 0.55     # 下降速度曲线：0.4 保守 / 0.7 激进
-  set gain = 0.06        # 油门比例增益：抖就调小，迟钝就调大
-  set maxdesc = 60       # 最大下降率 m/s
+  # ---- tunables ----
+  set vtouch = 1.2       # target touchdown speed, m/s
+  set profile = 0.55     # descent curve: 0.4 gentle / 0.7 aggressive
+  set gain = 0.06        # throttle gain: lower if it shakes, raise if sluggish
+  set maxdesc = 60       # max descent rate, m/s
 
   rcs on
   throttle on
 
-  # 0) 推力检查
+  # 0) thrust check
   wait 0.3
   if MaxTWR < 1.05
     fail "MaxTWR < 1.05: thrust too low to land"
   end
 
-  # 1) 消水平速度：朝速度反向点火
+  # 1) kill horizontal speed: burn against the velocity vector
   if HorizontalSpeed > 3
     turn to retrograde in 2
     set throttle to 1
@@ -28,27 +31,29 @@ on start
     end
   end
 
-  # 2) 垂直下降：目标下降率由“剩余高度 + 可用减速度”推出，再用比例油门跟踪
+  # 2) vertical descent: the target descent rate comes from the remaining
+  #    height and the available deceleration, then a proportional throttle
+  #    tracks it
   turn to up in 2
   while AltitudeAGL > 1.5
-    set amax = max(0.5, MaxTWR * 9.8)                 # 最大可用加速度 m/s^2
-    set v = 0 - VerticalSpeed                         # 下降为正
+    set amax = max(0.5, MaxTWR * 9.8)                 # max acceleration, m/s^2
+    set v = 0 - VerticalSpeed                         # descent as positive
     set h = max(AltitudeAGL, 0.5)
 
-    # 保守曲线：按 0.55 倍“恰好停住”的速度下降
+    # gentle curve: descend at 0.55 of the speed that could still stop in time
     set vt = clamp(sqrt(2 * max(0.5, amax - Gravity) * h) * profile, vtouch, maxdesc)
 
-    # 最后 5 m 强制慢速，保证轻触地
+    # force a slow rate over the last 5 m so the touchdown is soft
     if h < 5
       set vt = vtouch
     end
 
-    # 悬浮油门 + 速度误差修正
+    # hover throttle plus a speed error correction
     set throttle to clamp(Gravity / amax + (v - vt) * gain, 0, 1)
     wait 0.1
   end
 
-  # 3) 触地
+  # 3) touchdown
   throttle off
   rcs off
   log "Touchdown: {VerticalSpeed} m/s at {AltitudeAGL} m AGL"

@@ -5,10 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SFS Vizzy — visual programming</title>
 <style>
+
   :root{
-    --bg:#1b1e24; --panel:#23262d; --line:#31353d; --text:#e8ebf2; --muted:#9aa4b4;
-    --grid:rgba(255,255,255,.045);
-    --ok:#3dd68c; --bad:#e5484d;
+    /* 亮灰（默认） */
+    --bg:#c9cfd7; --panel:#d7dce3; --panel2:#e1e6ec; --surface:#e8ecf1; --line:#b6bec8;
+    --text:#1b2027; --muted:#58616d; --ink:#2b323b; --muted2:#39424e;
+    --ok:#1d7f4d; --bad:#ad2f38; --accent:#0e7490; --accent2:#1d4ed8;
+    --grid:rgba(0,0,0,.05);
+    --brand:#a2731b; --dot:#a9b1bb; --active-fg:#eef1f5;
+    --surface-hover:#f2f5f8; --line-strong:#98a3b0;
+    --head-grad1:#e7ebf0; --head-grad2:#d9dee5;
+    --rail-bg:#bfc6cf; --rbtn-fg:#39414c; --rail-btn-hover:#cdd4dc;
+    --canvas-bg:#d3d8df; --card-bg:#e1e6ec; --head-bg:#e9edf2;
+    --field-bg:#f2f5f8; --field-line:rgba(0,0,0,.22); --field-ink:#16191e; --block-ink:#f4f7fb;
+    --arrow:#59636f; --arrow2:#8d97a3; --surface-90:rgba(232,236,241,.92);
+    --track:#c4cbd4; --code-bg:#eef1f5;
+    --modal-bg:rgba(27,32,39,.55); --err-bg:#f0cfd2; --err-line:#d59aa0; --err-ink:#8a1f26;
   }
   *{box-sizing:border-box}
   [hidden]{display:none !important}
@@ -18,266 +30,247 @@
     font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
     font-size:12px;display:flex;flex-direction:column;overflow:hidden;
   }
-  header{
-    display:flex;align-items:center;gap:10px;padding:9px 14px;
-    border-bottom:1px solid var(--line);
-    background:linear-gradient(#171b22,#111419);
+  button,input,select,textarea{font:inherit}
+
+
+  /* ---- 深色主题 ---- */
+  body.theme-dark{
+    --bg:#15181d; --panel:#1c2027; --panel2:#232830; --surface:#272c35; --line:#343a44;
+    --text:#e4e9f0; --muted:#98a2b0; --ink:#e4e9f0; --muted2:#aeb8c6;
+    --ok:#4cc38a; --bad:#f08a90; --accent:#1596b5; --accent2:#5b8dff;
+    --grid:rgba(255,255,255,.05);
+    --brand:#f3c14b; --dot:#5a636f; --active-fg:#15181d;
+    --surface-hover:#333a45; --line-strong:#4a525e;
+    --head-grad1:#232830; --head-grad2:#1a1e24;
+    --rail-bg:#171b20; --rbtn-fg:#c3ccd8; --rail-btn-hover:#272c35;
+    --canvas-bg:#181c22; --card-bg:#212630; --head-bg:#262b34;
+    --field-bg:#171b21; --field-line:rgba(255,255,255,.18); --field-ink:#e6eaf1; --block-ink:#f4f7fb;
+    --arrow:#8b95a2; --arrow2:#6c7683; --surface-90:rgba(39,44,53,.92);
+    --track:#343a44; --code-bg:#171b21;
+    --modal-bg:rgba(0,0,0,.62); --err-bg:#3a1b1e; --err-line:#6b2a2f; --err-ink:#ffc9c9;
   }
-  .brand{font-size:13px;letter-spacing:.16em;color:#f3c14b;font-weight:800;white-space:nowrap}
-  .brand b{color:#fff}
-  #conn{width:9px;height:9px;border-radius:50%;background:var(--bad);display:inline-block;
-        margin-right:7px;box-shadow:0 0 8px rgba(229,72,77,.55);vertical-align:middle}
-  #conn.on{background:var(--ok);box-shadow:0 0 8px rgba(61,214,140,.55)}
+  @media (prefers-color-scheme: dark){
+    body:not(.theme-light){
+    --bg:#15181d; --panel:#1c2027; --panel2:#232830; --surface:#272c35; --line:#343a44;
+    --text:#e4e9f0; --muted:#98a2b0; --ink:#e4e9f0; --muted2:#aeb8c6;
+    --ok:#4cc38a; --bad:#f08a90; --accent:#1596b5; --accent2:#5b8dff;
+    --grid:rgba(255,255,255,.05);
+    --brand:#f3c14b; --dot:#5a636f; --active-fg:#15181d;
+    --surface-hover:#333a45; --line-strong:#4a525e;
+    --head-grad1:#232830; --head-grad2:#1a1e24;
+    --rail-bg:#171b20; --rbtn-fg:#c3ccd8; --rail-btn-hover:#272c35;
+    --canvas-bg:#181c22; --card-bg:#212630; --head-bg:#262b34;
+    --field-bg:#171b21; --field-line:rgba(255,255,255,.18); --field-ink:#e6eaf1; --block-ink:#f4f7fb;
+    --arrow:#8b95a2; --arrow2:#6c7683; --surface-90:rgba(39,44,53,.92);
+    --track:#343a44; --code-bg:#171b21;
+    --modal-bg:rgba(0,0,0,.62); --err-bg:#3a1b1e; --err-line:#6b2a2f; --err-ink:#ffc9c9;
+    }
+  }
+  /* ---- 自制滚动条 ---- */
+  *{scrollbar-width:thin;scrollbar-color:#9aa3ae transparent}
+  ::-webkit-scrollbar{width:11px;height:11px;background:transparent}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#98a2ae;border-radius:6px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#78828f;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:active{background:#5f6975;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-corner{background:transparent}
+  .rail::-webkit-scrollbar,.pbody::-webkit-scrollbar,.console::-webkit-scrollbar,
+  .vars::-webkit-scrollbar,.helpbody::-webkit-scrollbar,#codeText::-webkit-scrollbar{width:10px}
+  .rail::-webkit-scrollbar-thumb,.pbody::-webkit-scrollbar-thumb,.console::-webkit-scrollbar-thumb,
+  .vars::-webkit-scrollbar-thumb,.helpbody::-webkit-scrollbar-thumb,#codeText::-webkit-scrollbar-thumb{background:#98a2ae}
+
+  /* ---------------- header ---------------- */
+  header{
+    display:flex;align-items:center;gap:10px;padding:8px 14px;flex:0 0 auto;
+    background:linear-gradient(#e7ebf0,#d9dee5);border-bottom:1px solid var(--line);
+  }
+  .brand{font-size:13px;letter-spacing:.16em;color:var(--brand);font-weight:800;white-space:nowrap}
+  .brand b{color:var(--text)}
+  #conn{width:9px;height:9px;border-radius:50%;background:var(--dot);display:inline-block;
+        margin-right:7px;vertical-align:middle}
+  #conn.on{background:#1d7f4d}
   .status{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .spacer{flex:1}
-  .btn{background:#1d232c;border:1px solid #2c3542;color:#dfe5ee;padding:6px 11px;border-radius:4px;
-       font:inherit;font-size:11px;letter-spacing:.07em;cursor:pointer;white-space:nowrap}
-  .btn:hover:not(:disabled){background:#242c37;border-color:#3a4554}
-  .btn:disabled{opacity:.32;cursor:default}
-  .btn.primary{background:#0e7490;border-color:#0e7490;color:#fff}
-  .btn.primary:hover:not(:disabled){background:#0e86a8}
-  .btn.danger{background:#4b1a1f;border-color:#6f272d;color:#f0c2c5}
-  main{flex:1;display:grid;grid-template-columns:196px minmax(300px,1fr) 336px;min-height:0}
-  aside{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:12px}
-  aside.telemetry{border-right:none;border-left:1px solid var(--line);display:flex;flex-direction:column}
-  .ptitle{font-size:9px;letter-spacing:.2em;color:var(--muted);margin:0 0 8px}
-  .canvas{
-    position:relative;overflow:hidden;padding:0;
-    background:
-      linear-gradient(var(--grid) 1px,transparent 1px) 0 0/26px 26px,
-      linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/26px 26px,
-      #191c22;
-    cursor:grab;
+  .btn{
+    background:var(--surface);border:1px solid var(--line);color:var(--ink);padding:5px 10px;border-radius:5px;
+    font-size:11px;letter-spacing:.06em;cursor:pointer;white-space:nowrap;
   }
-  .canvas.panning{cursor:grabbing}
-  #canvasWorld{
-    position:absolute;left:0;top:0;
-    padding:18px 22px 80px;
-    width:max-content;min-width:100%;
-    transform-origin:0 0;
-    will-change:transform;
-  }
-  .viewhint{
-    position:absolute;left:12px;bottom:10px;color:#6b7686;font-size:10px;
-    pointer-events:none;user-select:none;
-  }
-  .viewbtn{
-    font-size:10px;padding:3px 8px;
-    background:rgba(35,38,45,.9);border-color:#3a404a;
-  }
-  .viewtools{
-    position:absolute;right:12px;bottom:10px;z-index:6;
-    display:flex;align-items:center;gap:4px;
-    background:rgba(27,30,36,.82);border:1px solid #31353d;border-radius:6px;padding:3px 5px;
-  }
-  #zoomPct{min-width:38px;text-align:center;color:#9aa4b4;font-size:10px;user-select:none}
-  #launches{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-bottom:6px}
-  .launch{flex:0 0 462px;max-width:462px;margin-bottom:6px}
-  .eventbar{
-    display:flex;align-items:center;gap:8px;
-    padding:6px 8px 6px 14px;border-radius:7px;
-    background:linear-gradient(#c9a227,#a8861a);color:#2b2100;font-weight:800;
-    letter-spacing:.16em;box-shadow:0 3px 0 rgba(0,0,0,.35);
-    margin-bottom:4px;
-  }
-  .eventbar .evlabel{white-space:nowrap}
-  .eventbar .grow{flex:1}
-  .eventbar .del{background:rgba(0,0,0,.18);color:#2b2100}
-  .eventbar .del:hover{background:rgba(0,0,0,.32)}
-  .container{display:flex;flex-direction:column;align-items:flex-start}
-  .block{
-    display:flex;align-items:center;gap:5px;
-    background:var(--c);border-radius:7px;padding:3px 6px;min-height:30px;
-    border:1px solid rgba(255,255,255,.14);
-    box-shadow:0 2px 0 rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.14);
-    color:#fff;font-weight:700;font-size:11px;user-select:none;position:relative;max-width:100%;
-  }
-  .block .handle{cursor:grab;opacity:.5;letter-spacing:-1px;padding:0;font-weight:400;font-size:10px}
-  .block .handle:active{cursor:grabbing}
-  .block .label{white-space:nowrap}
-  .block .dim{font-weight:400;opacity:.8;font-size:10px}
-  .block .grow{flex:1}
-  /* 事件条 / 积木行共用的输入控件样式 */
-  .block input.field, .triggerbar input.field{
-    background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.18);border-radius:4px;
-    color:#fff;padding:3px 6px;font:inherit;font-size:11px;outline:none;min-width:34px;
-  }
-  .block input.field:focus, .triggerbar input.field:focus{border-color:rgba(255,255,255,.65);background:rgba(0,0,0,.58)}
-  .block select.op, .triggerbar select.op{
-    background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.18);border-radius:4px;
-    color:#fff;padding:2px;font:inherit;font-size:10px;outline:none;
-  }
-  #events{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-  #triggers{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-  .trigger{flex:0 0 520px;max-width:520px;margin-bottom:6px}
-  .triggerbar{
-    display:flex;align-items:center;gap:6px;flex-wrap:wrap;
-    background:linear-gradient(#0e7490,#0b5b70);border-radius:5px;padding:5px 8px;
-    box-shadow:0 2px 0 rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.12);
-    color:#fff;font-weight:800;letter-spacing:.12em;
-  }
-  .triggerbar .tlabel{white-space:nowrap}
-  .triggerbar .dim{font-weight:400;letter-spacing:0;opacity:.85;font-size:10px}
-  .triggerbar .grow{flex:1}
-  .triggerbar .chk{
-    display:flex;align-items:center;gap:4px;font-weight:400;letter-spacing:0;font-size:11px;
-    cursor:pointer;user-select:none;
-  }
-  .triggerbar .chk input{accent-color:#3dd68c}
-  .del{background:rgba(0,0,0,.28);border:none;color:#fff;width:20px;height:20px;border-radius:4px;
-       cursor:pointer;font:inherit;line-height:1;opacity:.55;padding:0}
-  .del:hover{opacity:1;background:rgba(0,0,0,.5)}
-  .sub{margin:1px 0 3px 18px;border-left:2px solid rgba(255,255,255,.10);padding-left:8px}
-  .sublabel{font-size:9px;letter-spacing:.16em;color:#93a0b1;margin:4px 0 2px}
-  .slot{height:8px;margin:1px 0;border-radius:3px;transition:height .07s,background .07s}
-  .slot.over{height:26px;background:rgba(255,255,255,.14);outline:1px dashed rgba(255,255,255,.5)}
-  .hint{color:#5e6a7b;font-size:10px;font-style:italic;padding:3px 5px}
-  .palette .pbtn{
-    display:block;width:100%;text-align:left;margin-bottom:5px;padding:6px 9px;border:none;
-    border-radius:5px;color:#fff;font:inherit;font-weight:700;font-size:11px;cursor:pointer;
-    background:var(--c);box-shadow:0 2px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.12);
-  }
-  .palette .pbtn:hover{filter:brightness(1.16)}
-  .palette .phint{color:#6b7686;font-size:10px;line-height:1.5;margin-top:10px}
-  .palette .psec{font-size:9px;letter-spacing:.18em;color:#6b7686;margin:14px 0 6px}
-  .telem-row{margin-bottom:9px}
-  .telem-head{display:flex;justify-content:space-between;color:#93a0b1;font-size:10px;letter-spacing:.08em}
-  .telem-head b{color:#fff;font-weight:700;letter-spacing:0}
-  .bar{height:6px;border-radius:3px;background:#232a34;margin-top:4px;overflow:hidden}
-  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#0e7490,#3dd68c);transition:width .09s linear}
-  .vars{color:#8ea0b6;font-size:10px;line-height:1.7;word-break:break-word}
-  .console{
-    flex:1;min-height:120px;overflow:auto;background:#0b0e12;border:1px solid var(--line);
-    border-radius:4px;padding:8px;font-size:10px;line-height:1.55;color:#9fb0c4;
-  }
-  .console div{white-space:pre-wrap;word-break:break-word}
-  .console .ts{color:#5a6675}
-  .console .ok{color:#7ee2b8}
-  .console .err{color:#ff9a9e}
-  footer{padding:6px 14px;border-top:1px solid var(--line);color:#68758a;font-size:10px;display:flex;gap:14px}
-  .viewtoggle{display:flex;border:1px solid #2c3542;border-radius:4px;overflow:hidden}
-  .viewtoggle .vbtn{border:none;border-radius:0;background:#1d232c}
-  .viewtoggle .vbtn.active{background:#0e7490;color:#fff}
-  .codeview{display:flex;flex-direction:column;min-height:0;min-width:0;grid-column:1/3}
-  .codebar{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--line);
-           color:#8b95a5;font-size:11px}
-  .codebar .btn{margin-left:auto}
-  #codeText{
-    flex:1;resize:none;border:none;outline:none;background:#0b0e12;color:#d7e0ec;
-    font:inherit;font-size:12px;line-height:1.65;padding:14px 18px;white-space:pre;tab-size:2;
-  }
-  .codeerr{min-height:22px;padding:4px 14px;color:#ff9a9e;font-size:11px;border-top:1px solid var(--line)}
-  .codeerr.ok{color:#7ee2b8}
-  .modal{position:fixed;inset:0;background:rgba(5,8,12,.72);display:flex;align-items:center;
-         justify-content:center;z-index:50}
-  .helpbox{width:min(860px,92vw);max-height:86vh;display:flex;flex-direction:column;
-           background:#161a20;border:1px solid #2c3542;border-radius:8px;box-shadow:0 18px 60px rgba(0,0,0,.5)}
-  .helphead{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;
-            border-bottom:1px solid var(--line);font-weight:800;letter-spacing:.1em;color:#f3c14b}
-  .helpbody{overflow:auto;padding:6px 22px 22px;font-size:12px;line-height:1.75;color:#c3cddb}
-  .helpbody h2{font-size:13px;color:#fff;margin:20px 0 6px;border-bottom:1px solid #242a33;padding-bottom:5px}
-  .helpbody h2:first-child{margin-top:8px}
-  .helpbody code{background:#0b0e12;border:1px solid #242a33;border-radius:3px;padding:1px 5px;color:#8fd3e8;font-size:11px}
-  .helpbody pre{background:#0b0e12;border:1px solid #242a33;border-radius:4px;padding:10px 12px;overflow:auto;
-                font-size:11px;line-height:1.6;color:#9fb0c4}
-  .helpbody table{border-collapse:collapse;width:100%;margin:6px 0}
-  .helpbody td,.helpbody th{border:1px solid #242a33;padding:4px 9px;text-align:left;vertical-align:top}
-  .mjbox{width:min(580px,94vw)}
-  .mjstatus{background:#0b0e12;border:1px solid #242a33;border-radius:4px;padding:8px 10px;
-            color:#8fd3e8;font-size:12px;margin:8px 0 12px;white-space:pre-wrap}
-  .mjrow{display:flex;align-items:center;gap:10px;margin:9px 0;flex-wrap:wrap}
-  .mjrow .btn{min-width:170px;text-align:left}
-  .mjrow label{display:flex;align-items:center;gap:6px;color:#9fb0c4;font-size:11px}
-  .mjrow input{background:#0b0e12;border:1px solid #2c3542;border-radius:4px;color:#fff;
-               padding:4px 6px;width:92px;font:inherit;font-size:11px}
-  .helpbody th{color:#8b95a5;font-size:10px;letter-spacing:.12em;background:#12161c}
-  .helpbody td code{white-space:nowrap}
-  .helpbody .dim{color:#8b95a5}
-  @media (max-width:1080px){
-    main{grid-template-columns:170px minmax(260px,1fr) 290px}
-  }
-  /* monochrome theme */
-  :root{--bg:#0c0c0c;--panel:#151515;--line:#2c2c2c;--text:#f2f2f2;--muted:#9a9a9a;
-        --grid:rgba(255,255,255,.06);--ok:#ffffff;--bad:#777777}
-  header{background:#0c0c0c;border-bottom-color:#2c2c2c}
-  .brand{color:#ffffff}
-  #conn{background:#666666;box-shadow:none}
-  #conn.on{background:#ffffff;box-shadow:none}
-  .btn{background:#141414;border-color:#3a3a3a;color:#f0f0f0}
-  .btn:hover:not(:disabled){background:#1f1f1f;border-color:#666666}
-  .btn.primary{background:#f2f2f2;border-color:#f2f2f2;color:#0c0c0c}
-  .btn.primary:hover:not(:disabled){background:#ffffff}
-  .btn.danger{background:#0c0c0c;border-color:#6a6a6a;color:#f2f2f2}
-  .canvas{background:
-      linear-gradient(var(--grid) 1px,transparent 1px) 0 0/26px 26px,
-      linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/26px 26px,#0f0f0f}
-  .eventbar{background:#f2f2f2;color:#0c0c0c;border:1px solid #f2f2f2;box-shadow:none}
-  .eventbar .del{background:#d0d0d0;color:#0c0c0c}
-  .eventbar .del:hover{background:#bcbcbc}
-  .triggerbar{background:#141414;border:1px solid #4a4a4a;box-shadow:none}
-  .block{border-color:rgba(255,255,255,.16);
-         box-shadow:0 1px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08)}
-  .slot.over{background:rgba(255,255,255,.12);outline-color:rgba(255,255,255,.6)}
-  .palette .pbtn{border:1px solid rgba(255,255,255,.14);box-shadow:0 1px 0 rgba(0,0,0,.6)}
-  .bar{background:#242424}
-  .bar i{background:#f2f2f2}
-  .console{background:#0a0a0a;border-color:#2c2c2c;color:#c9c9c9}
-  .console .ok{color:#ffffff}
-  .console .err{color:#bdbdbd}
-  .viewtoggle .vbtn{background:#141414}
-  .viewtoggle .vbtn.active{background:#f2f2f2;color:#0c0c0c}
-  #codeText{background:#0a0a0a;color:#eaeaea}
-  .codeerr{color:#c9c9c9}
-  .codeerr.ok{color:#ffffff}
-  .modal{background:rgba(0,0,0,.8)}
-  .helpbox{background:#101010;border-color:#333333}
-  .helphead{color:#ffffff}
-  .helpbody h2{border-bottom-color:#2c2c2c}
-  .helpbody code{background:#0a0a0a;border-color:#2c2c2c;color:#e2e2e2}
-  .helpbody pre{background:#0a0a0a;border-color:#2c2c2c;color:#d0d0d0}
-  .helpbody td,.helpbody th{border-color:#2c2c2c}
-  .viewtools{background:rgba(12,12,12,.9);border-color:#333333}
-  #zoomPct{color:#9a9a9a}
+  .btn:hover:not(:disabled){background:var(--surface-hover);border-color:var(--line-strong)}
+  .btn:disabled{opacity:.35;cursor:default}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover:not(:disabled){background:#0f86a6}
+  .btn.danger{background:#ad2f38;border-color:#ad2f38;color:#fff}
+  .btn.mini{padding:1px 7px;font-size:10px;border-radius:4px}
+  .viewtoggle{display:flex;gap:0}
+  .viewtoggle .vbtn{border-radius:0}
+  .viewtoggle .vbtn:first-child{border-radius:5px 0 0 5px}
+  .viewtoggle .vbtn:last-child{border-radius:0 5px 5px 0;border-left:none}
+  .viewtoggle .vbtn.active{background:var(--ink);border-color:var(--ink);color:var(--active-fg)}
 
-  /* ---- bottom telemetry layout ---- */
-  main{display:grid;grid-template-columns:var(--leftw,196px) minmax(0,1fr);
-       grid-template-rows:minmax(0,1fr) auto;min-height:0}
-  body.left-hidden main{grid-template-columns:0 minmax(0,1fr)}
+  /* ---------------- error bar ---------------- */
+  .errbar{display:flex;align-items:center;gap:12px;padding:7px 14px;flex:0 0 auto;
+          background:var(--err-bg);border-bottom:1px solid var(--err-line);color:var(--err-ink);font-size:12px}
+  .errbar[hidden]{display:none}
+  .errbar #errmsg{flex:1;white-space:pre-wrap}
+
+  /* ---------------- main grid ---------------- */
+  main{flex:1;display:grid;grid-template-columns:46px 268px minmax(0,1fr);min-height:0}
+  body.left-hidden main{grid-template-columns:46px 0 minmax(0,1fr)}
   body.left-hidden #palette{display:none}
-  #palette{grid-column:1;grid-row:1}
-  .stage{grid-column:2;grid-row:1;display:flex;min-width:0;min-height:0}
-  .stage .canvas{flex:1;min-width:0}
-  .stage .codeview{flex:1;min-width:0;grid-column:auto}
-  .bottom{grid-column:1/3;grid-row:2;background:var(--panel);border-top:1px solid var(--line);
-          padding:8px 12px;display:flex;flex-direction:column;gap:6px;min-height:0}
-  .bottom-top{display:flex;align-items:center;gap:14px;min-height:26px}
-  .telem-grid{flex:1;display:flex;flex-wrap:wrap;gap:2px 16px;align-content:flex-start;
-              max-height:80px;overflow:auto}
-  .telem-row{width:126px;margin:0}
-  .bottom-body{display:flex;gap:12px;min-height:0}
-  .bottom-body .vars{width:300px;max-height:72px;overflow:auto;border-right:1px solid var(--line);padding-right:10px}
-  .bottom-body .console{flex:1;height:72px;min-height:0}
-  body.bottom-hidden .bottom-body{display:none}
-  body.bottom-hidden .telem-grid{max-height:none}
-  .btn.mini{padding:2px 7px;font-size:10px}
 
-  /* ---- Vizzy-style clip blocks ---- */
-  .block{border-radius:9px;flex-wrap:wrap;margin-top:5px;row-gap:4px}
-  .block::before{content:"";position:absolute;left:15px;top:-5px;width:26px;height:6px;
-                 background:var(--c);border:1px solid rgba(255,255,255,.22);border-bottom:0;
-                 border-radius:3px 3px 0 0;pointer-events:none}
-  .block::after{content:"";position:absolute;left:15px;bottom:-6px;width:26px;height:6px;
-                background:#0f0f0f;border-radius:0 0 3px 3px;pointer-events:none}
-  .launch{flex:0 1 auto;width:max-content;min-width:462px;max-width:820px}
-  .sub{margin:2px 0 4px 14px;border-left:7px solid var(--c,#3a3a3a);padding-left:10px}
-  .sublabel{font-size:8px;letter-spacing:.16em;color:var(--c,#93a0b1);background:#0f0f0f;
-            display:inline-block;padding:0 4px;margin:0 0 3px -3px}
-  .field{max-width:none}
+  /* rail */
+  .rail{grid-column:1;grid-row:1;display:flex;flex-direction:column;gap:6px;padding:8px 5px;
+        background:var(--rail-bg);border-right:1px solid var(--line);overflow:auto}
+  .rbtn{width:34px;height:34px;border-radius:7px;border:1px solid transparent;background:transparent;
+        color:var(--rbtn-fg);font-size:15px;line-height:1;cursor:pointer}
+  .rbtn:hover{background:var(--rail-btn-hover)}
+  .rbtn.active{background:var(--ink);color:var(--active-fg)}
 
-  .block{width:max-content;max-width:100%}
-  .container{min-width:160px}
-  .slot{align-self:stretch}
-  .hint{align-self:flex-start}
+  /* palette */
+  .palette{grid-column:2;grid-row:1;background:var(--panel);border-right:1px solid var(--line);overflow:hidden;display:flex}
+  .pbody{flex:1;min-width:0;overflow:auto;padding:12px 12px 20px}
+  .phead{font-size:9px;letter-spacing:.2em;color:var(--muted);margin:0 0 10px}
+  .psearch{margin-bottom:10px}
+  .psearch input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;
+                 color:var(--text);padding:6px 8px;outline:none}
+  .psearch input:focus{border-color:var(--accent)}
+  .psec{font-size:9px;letter-spacing:.18em;color:var(--muted);margin:16px 0 7px}
+  .palette .pbtn{
+    display:block;width:100%;text-align:left;margin-bottom:5px;padding:6px 9px;border-radius:6px;
+    background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--c,#7a8492);
+    color:var(--ink);cursor:pointer;font-size:11px;
+  }
+  .palette .pbtn:hover{background:var(--surface-hover)}
+  .phint{color:var(--muted);font-size:10px;line-height:1.6;margin-top:10px}
+  .pmenu{display:flex;flex-direction:column;gap:6px}
+  .pmenu .mbtn{text-align:left;justify-content:flex-start;width:100%}
+  .pmenu .mgroup{font-size:9px;letter-spacing:.18em;color:var(--muted);margin:12px 0 2px}
+
+  /* stage */
+  .stage{grid-column:3;grid-row:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+  .canvas{position:relative;overflow:hidden;flex:1;min-height:0;
+      background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/26px 26px,
+                 linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/26px 26px,var(--canvas-bg)}
+  #canvasPan{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0}
+  #canvasWorld{position:absolute;left:0;top:0;transform-origin:0 0;padding:14px 20px 64px}
+  .canvas.panning{cursor:grabbing}
+
+  /* 卡片：ON START / 事件 / 触发器 / 函数 */
+  #launches,#events,#triggers,#functions{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;margin-bottom:14px}
+  .launch,.event,.trigger{
+    background:var(--card-bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(0,0,0,.10);min-width:280px;max-width:560px;
+  }
+  .eventbar,.triggerbar{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line)}
+  .eventbar{background:var(--head-bg)}
+  .triggerbar{background:var(--card-bg)}
+  .eventbar .evlabel,.triggerbar .tlabel{font-weight:700;font-size:11px;letter-spacing:.06em;color:var(--ink)}
+  .triggerbar .tlabel{color:var(--ink)}
+  .grow{flex:1}
+  .del{width:20px;height:20px;line-height:1;border-radius:4px;border:1px solid var(--line);
+       background:var(--surface);color:var(--muted);cursor:pointer;font-size:11px}
+  .del:hover{background:var(--err-bg);color:var(--err-ink)}
+  .chk{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted)}
+
+  /* 积木 */
+  .container{padding:8px;display:flex;flex-direction:column;gap:0;background:var(--card-bg)}
+  .block{
+    position:relative;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+    padding:5px 9px;margin:2px 0;border-radius:7px;
+    background:var(--c,#7a8492);color:var(--block-ink);box-shadow:0 1px 0 rgba(0,0,0,.18);
+    width:max-content;max-width:100%;
+  }
+  .block .handle{cursor:grab;color:rgba(255,255,255,.5);font-size:11px;letter-spacing:-1px}
+  .block .label{font-weight:700;font-size:11px;white-space:nowrap}
+  .block .dim{color:rgba(255,255,255,.78);font-size:10px}
+  .field,.op{
+    background:var(--field-bg);border:1px solid var(--field-line);border-radius:4px;
+    color:var(--field-ink);font-size:11px;padding:2px 5px;outline:none;
+  }
+  .field{width:56px}
+  .field:focus,.op:focus{border-color:var(--accent)}
+  .op{cursor:pointer}
+  .sub{width:100%;margin:4px 0 2px 14px;padding-left:10px;border-left:2px solid var(--line-strong)}
+  .sublabel{font-size:10px;color:var(--muted2);margin:2px 0 2px 2px}
+  .hint{color:var(--muted);font-size:10px;font-style:italic;padding:2px 4px}
+
+  /* 插槽 / 磁吸箭头 */
+  .slot{position:relative;height:14px;border-radius:4px;transition:background .08s,height .08s}
+  .slot::after{content:"";position:absolute;left:16px;top:50%;transform:translateY(-50%) scale(1);
+    border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--arrow);opacity:0;
+    transition:opacity .1s,transform .1s}
+  .slot::before{content:"";position:absolute;left:22px;top:0;bottom:50%;width:2px;background:var(--arrow2);opacity:0;transition:opacity .1s}
+  body.dragging .slot::after{opacity:.45}
+  body.dragging .slot::before{opacity:.45}
+  .slot.near{height:26px;background:rgba(14,116,144,.14);outline:1px dashed var(--accent)}
+  .slot.near::after{opacity:1;transform:translateY(-50%) scale(1.25)}
+  .slot.near::before{opacity:.9}
+
+  /* 视图工具 */
+  .viewhint{position:absolute;left:12px;bottom:10px;color:var(--muted);font-size:10px;
+            background:var(--surface-90);padding:2px 7px;border-radius:5px;pointer-events:none}
+  .viewtools{position:absolute;right:12px;bottom:12px;display:flex;align-items:center;gap:4px;
+             background:var(--surface-90);border:1px solid var(--line);border-radius:7px;padding:3px}
+  .viewbtn{padding:2px 8px;font-size:12px}
+  #zoomPct{min-width:40px;text-align:center;color:var(--muted);font-size:10px;user-select:none}
+
+  /* ---------------- dock ---------------- */
+  .dock{flex:0 0 auto;border-top:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column}
+  .dock-telem{display:flex;align-items:center;gap:12px;padding:5px 12px;border-bottom:1px solid var(--line)}
+  .dock-title{font-size:9px;letter-spacing:.2em;color:var(--muted);flex:0 0 auto}
+  .telem-grid{flex:1;display:flex;flex-wrap:wrap;gap:2px 16px;align-content:flex-start;min-width:0}
+  .telem-row{width:122px;margin:0}
+  .telem-head{display:flex;justify-content:space-between;color:var(--muted2);font-size:10px;letter-spacing:.06em;gap:6px}
+  .telem-head b{color:var(--text);font-weight:700;letter-spacing:0}
+  .bar{height:5px;border-radius:3px;background:var(--track);margin-top:3px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  .dock-body{display:grid;grid-template-columns:minmax(190px,260px) 1fr;gap:10px;padding:8px 12px 9px}
+  body.bottom-hidden .dock-body{display:none}
+  .pane{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);border-radius:8px;
+        background:var(--surface)}
+  .pane-head{display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--line);
+             color:var(--muted);font-size:10px;letter-spacing:.1em;flex:0 0 auto}
+  .pane-head>span{flex:0 0 auto}
+  .logfilter{flex:1;min-width:50px;background:var(--surface);border:1px solid var(--line);border-radius:4px;
+             color:var(--text);font-size:10px;padding:1px 6px;outline:none}
+  .vars{padding:6px 8px;overflow:auto;max-height:84px;user-select:text;cursor:text;
+        font-size:11px;line-height:1.55;color:var(--text)}
+  .console{padding:6px 8px;overflow:auto;height:84px;user-select:text;cursor:text;
+           font-size:11px;line-height:1.55;color:var(--text)}
+  .console div{padding:1px 0}
+  .console .ts{color:var(--muted);margin-right:8px}
+  .console .ok{color:var(--ok)}
+  .console .err{color:var(--bad)}
+
+  /* ---------------- code view ---------------- */
+  .codeview{flex:1;min-height:0;display:flex;flex-direction:column}
+  .codebar{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);
+           background:var(--panel);color:#39424e}
+  .codebar span{flex:1}
+  #codeText{flex:1;min-height:0;width:100%;border:none;outline:none;resize:none;
+            background:var(--code-bg);color:var(--text);padding:10px 12px;font-family:inherit;font-size:12px;line-height:1.55}
+  .codeerr{padding:6px 14px;border-top:1px solid var(--line);color:var(--bad);font-size:11px;min-height:24px}
+  .codeerr.ok{color:var(--ok)}
+
+  /* ---------------- help ---------------- */
+  .modal{position:fixed;inset:0;background:var(--modal-bg);display:flex;align-items:center;justify-content:center;z-index:50}
+  .helpbox{width:min(860px,92vw);max-height:84vh;display:flex;flex-direction:column;
+           background:var(--card-bg);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .helphead{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;
+            border-bottom:1px solid var(--line);font-weight:700;letter-spacing:.08em;font-size:11px;color:var(--text)}
+  .helpbody{padding:14px 18px;overflow:auto;font-size:12px;line-height:1.7;color:var(--text)}
+  .helpbody h2{font-size:12px;margin:16px 0 6px;border-bottom:1px solid var(--line);padding-bottom:4px}
+  .helpbody h3{font-size:11px;margin:12px 0 4px}
+  .helpbody table{border-collapse:collapse;width:100%}
+  .helpbody td,.helpbody th{border:1px solid var(--line);padding:4px 7px;vertical-align:top}
+  .helpbody th{background:var(--panel2);color:var(--muted2);font-size:10px;letter-spacing:.08em;text-align:left}
+  .helpbody code{background:var(--panel2);border:1px solid var(--line);border-radius:3px;padding:0 4px;color:var(--text)}
+  .helpbody pre{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:8px 10px;overflow:auto;color:var(--text)}
+  .helpbody .dim{color:var(--muted)}
+
+  footer{flex:0 0 auto;padding:5px 14px;border-top:1px solid var(--line);background:var(--panel);
+         color:var(--muted);font-size:10px;display:flex;gap:16px}
+
 </style>
 </head>
 <body>
@@ -286,75 +279,109 @@
   <div class="status" id="status">connecting…</div>
   <div class="spacer"></div>
   <div class="viewtoggle">
-    <button class="btn vbtn active" id="viewBlocks">BLOCKS</button>
-    <button class="btn vbtn" id="viewCode">CODE</button>
+    <button class="btn vbtn active" id="viewBlocks">Blocks</button>
+    <button class="btn vbtn" id="viewCode">Code</button>
   </div>
-  <button class="btn" id="btnTogglePalette" title="show / hide block palette">PANEL</button>
-  <button class="btn" id="btnToggleBottom" title="show / hide telemetry">INFO</button>
-  <button class="btn primary" id="btnRun">RUN</button>
-  <button class="btn" id="btnStop">STOP</button>
-  <button class="btn" id="btnSave">SAVE</button>
-  <button class="btn" id="btnFromGame">FROM GAME</button>
-  <button class="btn danger" id="btnClear">CLEAR</button>
-  <button class="btn" id="btnHelp" title="help / documentation">?</button>
+  <button class="btn primary" id="btnRun">Run</button>
+  <button class="btn" id="btnStop">Stop</button>
+  <button class="btn" id="btnTogglePalette" title="show / hide block palette" hidden>▤</button>
+  <button class="btn" id="btnToggleBottom" title="show / hide telemetry">▾</button>
+  <button class="btn" id="btnHelp" title="help / documentation" hidden>?</button>
+  <button class="btn" id="btnSave" hidden>Save</button>
+  <button class="btn" id="btnFromGame" hidden>From game</button>
+  <button class="btn danger" id="btnClear" hidden>Clear</button>
 </header>
 
-<main id="main">
+<div class="errbar" id="errbar" hidden>
+  <span id="errmsg"></span>
+  <button class="btn" id="errclose" title="close">✕</button>
+</div>
+
+<main>
+  <nav class="rail" id="rail">
+    <button class="rbtn active" data-menu="blocks" title="blocks">▦</button>
+    <button class="rbtn" data-menu="file" title="file">▤</button>
+    <button class="rbtn" data-menu="view" title="view">◫</button>
+    <button class="rbtn" data-menu="help" title="help">?</button>
+    <button class="rbtn" id="btnTheme" title="theme">◐</button>
+  </nav>
+
   <aside class="palette" id="palette">
-    <div class="ptitle">BLOCKS</div>
-    <div id="paletteList"></div>
-    <div class="phint">
-      Click a block to append it to the last <b>ON START</b>; drag a block from here
-      and drop it on any glowing gap to place it exactly. Drag blocks inside the canvas
-      to move them (inputs won't start a drag). Use <b>break</b> to exit the nearest while/repeat.
+    <div class="pbody">
+      <div class="phead" id="phead">Blocks</div>
+      <div class="psearch"><input id="paletteSearch" placeholder="search blocks…" spellcheck="false" autocomplete="off"></div>
+      <div id="paletteList"></div>
+      <div id="paletteHints">
+        <div class="phint">
+          Click a block to append it to the last <b>On start</b>; drag a block from here
+          and drop it on the highlighted gap to place it exactly. Drag blocks inside the canvas
+          to move them (inputs won't start a drag). Use <b>break</b> to exit the nearest while/repeat.
+        </div>
+        <div class="psec">Expression</div>
+        <div class="phint">
+          + - * / %% ^ ( )<br>
+          min max abs sqrt clamp pow floor ceil round<br>
+          sin cos tan asin acos atan atan2 (degrees) log ln · pi e
+        </div>
+        <div class="psec">Log text</div>
+        <div class="phint">log supports interpolation: <b>Alt = {AltitudeAGL} m</b> · <b>{planet}</b></div>
+      </div>
+      <div class="pmenu" id="pmenu" hidden></div>
     </div>
-    <div class="psec">EXPRESSION</div>
-    <div class="phint">
-      + - * / % ^ ( )<br>
-      min max abs sqrt clamp pow floor ceil round<br>
-      sin cos tan asin acos atan atan2 (degrees) log ln · pi e
-    </div>
-    <div class="psec">LOG TEXT</div>
-    <div class="phint">log supports interpolation: <b>Alt = {AltitudeAGL} m</b> · <b>{planet}</b></div>
   </aside>
 
   <div class="stage">
     <section class="canvas" id="canvas">
+      <div id="canvasPan">
         <div id="canvasWorld">
+          <div id="functions"></div>
           <div id="events"></div>
           <div id="triggers"></div>
           <div id="launches"></div>
         </div>
-        <div class="viewhint">drag to pan · wheel to zoom</div>
-        <div class="viewtools">
-          <button class="btn viewbtn" id="zoomOut" title="zoom out (Ctrl -)">−</button>
-          <span id="zoomPct" title="current zoom">100%</span>
-          <button class="btn viewbtn" id="zoomIn" title="zoom in (Ctrl +)">+</button>
-          <button class="btn viewbtn" id="btnRecenter" title="reset view (Ctrl 0)">CENTER</button>
-        </div>
-      </section>
+      </div>
+      <div class="viewhint">drag to pan · wheel to zoom</div>
+      <div class="viewtools">
+        <button class="btn viewbtn" id="zoomOut" title="zoom out (Ctrl -)">−</button>
+        <span id="zoomPct" title="current zoom">100%</span>
+        <button class="btn viewbtn" id="zoomIn" title="zoom in (Ctrl +)">+</button>
+        <button class="btn viewbtn" id="btnRecenter" title="reset view (Ctrl 0)">Center</button>
+      </div>
+    </section>
 
     <section class="codeview" id="codeview" hidden>
-        <div class="codebar">
-          <span>Plain-text program — same thing as the blocks, pick whichever hurts your brain less.</span>
-          <button class="btn primary" id="btnApply">APPLY → BLOCKS</button>
-        </div>
-        <textarea id="codeText" spellcheck="false"></textarea>
-        <div class="codeerr" id="codeErr"></div>
-      </section>
-  </div>
+      <div class="codebar">
+        <span>Plain-text program — same thing as the blocks.</span>
+        <button class="btn" id="btnCopyCode" title="copy program text">Copy</button>
+        <button class="btn primary" id="btnApply">APPLY → BLOCKS</button>
+      </div>
+      <textarea id="codeText" spellcheck="false"></textarea>
+      <div class="codeerr" id="codeErr"></div>
+    </section>
 
-  <section class="bottom" id="bottom">
-    <div class="bottom-top">
-      <span class="ptitle" style="margin:0">TELEMETRY</span>
-      <div id="telem" class="telem-grid"></div>
-      <button class="btn mini" id="btnBottomHide" title="collapse telemetry">▾</button>
-    </div>
-    <div class="bottom-body">
-      <div class="vars" id="vars"></div>
-      <div class="console" id="console"></div>
-    </div>
-  </section>
+    <section class="dock" id="bottom">
+      <div class="dock-telem">
+        <span class="dock-title">Telemetry</span>
+        <div id="telem" class="telem-grid"></div>
+        <button class="btn mini" id="btnBottomHide" title="collapse telemetry">▾</button>
+      </div>
+      <div class="dock-body">
+        <div class="pane">
+          <div class="pane-head"><span>Variables</span><button class="btn mini" id="btnCopyVars" title="copy variables">Copy</button></div>
+          <div class="vars" id="vars"></div>
+        </div>
+        <div class="pane">
+          <div class="pane-head">
+            <span>Console</span>
+            <input id="logFilter" class="logfilter" placeholder="filter" spellcheck="false" autocomplete="off">
+            <button class="btn mini" id="btnCopyLog" title="copy log">Copy</button>
+            <button class="btn mini" id="btnClearLog" title="clear log">Clear</button>
+          </div>
+          <div class="console" id="console"></div>
+        </div>
+      </div>
+    </section>
+  </div>
 </main>
 
 <footer>
@@ -367,7 +394,7 @@
 <div class="modal" id="helpModal" hidden>
   <div class="helpbox">
     <div class="helphead">
-      <span>SFS VIZZY HELP</span>
+      <span>SFS Vizzy Help</span>
       <button class="btn" id="btnHelpClose">✕</button>
     </div>
     <div class="helpbody" id="helpBody"></div>
@@ -409,22 +436,37 @@ const KIND_COLOR = {
   throttle_off: "#135c66",
   rcs_on: "#2a7f9e",
   rcs_off: "#236a86",
+  rcs_move: "#1b6b86",
   turn: "#c06a2e",
   turn_to: "#a85826",
-  stage: "#b8860b",
+  turn_target: "#8f5a2a",
+  stage: "#a8823c",
+  engine: "#8a5a2b",
+  parachute: "#a84b2c",
+  deploy: "#2f7a4f",
+  wheel: "#566b33",
+  hold: "#4a4fb0",
+  warp: "#6d3f9c",
   set_var: "#2f5fa8",
-  log: "#4753a8",
+  log: "#3f4f9c",
   dialog: "#3f5f7f",
   if: "#b5621f",
   while: "#9c4f16",
   repeat: "#8a4b8f",
   break: "#7a3a3a",
-  fail: "#a83232"
+  continue: "#6a4148",
+  fail: "#a83232",
+  toggle: "#8a6a25",
+  random: "#6a7a35",
+  call: "#2f7a63",
+  burn: "#b03a1f",
+  match: "#4a6a9c",
+  circularize: "#7a6a45"
 };
 
 const OPS = ["<", "<=", ">", ">=", "==", "!="];
 
-let program = { launches: [{ blocks: [] }], events: [], triggers: [], variables: {} };
+let program = { launches: [{ blocks: [] }], events: [], functions: [], triggers: [], variables: {} };
 let nextId = 1;
 let dragId = null;
 let paletteDrag = null;      // 从左侧面板拖出来的新积木 { kind }
@@ -453,11 +495,23 @@ function newBlock(kind) {
     case "log": b.a = "Hello"; break;
     case "turn": b.a = "15"; b.dir = "left"; b.b = ""; break;
     case "turn_to": b.a = "0"; b.dir = "deg"; b.b = ""; break;
+    case "turn_target": b.a = "0"; b.dir = "target"; b.b = ""; break;
     case "dialog": b.title = "Notice"; b.a = "Hello {planet}"; b.dir = "message"; b.var = "answer"; b.b = "0"; break;
     case "repeat": b.a = "5"; break;
     case "fail": b.a = "Program failed"; break;
     case "engine": b.dir = "on"; b.a = "all"; break;
     case "parachute": b.dir = "deploy"; b.a = "all"; break;
+    case "deploy": b.dir = "deploy"; b.a = "all"; break;
+    case "wheel": b.dir = "on"; b.a = "all"; b.b = ""; b.title = "1"; break;
+    case "rcs_move": b.dir = "up"; b.a = "2"; break;
+    case "burn": b.dir = "prograde"; b.a = "100"; break;
+    case "circularize": b.a = "2000"; break;
+    case "match": b.a = "1"; break;
+    case "hold": b.dir = "vspeed"; b.a = "0"; b.b = "10"; break;
+    case "warp": b.a = "4"; break;
+    case "call": b.a = "my_func"; break;
+    case "toggle": b.a = "value"; break;
+    case "random": b.a = "value"; break;
     case "stage": b.a = ""; break;
     case "if": b.a = "AltitudeAGL"; b.op = "<="; b.b = "10000"; break;
     case "while": b.a = "TWR"; b.op = ">="; b.b = "1.2"; break;
@@ -488,6 +542,19 @@ function ensureIds(list) {
     if (b.kind === "while") { b.body = b.body || []; ensureIds(b.body); }
     if (b.kind === "repeat") { b.body = b.body || []; ensureIds(b.body); }
   }
+}
+
+function ensureFunctionIds() {
+  if (!Array.isArray(program.functions)) program.functions = [];
+  for (const f of program.functions) {
+    if (!f._id) f._id = nextId++;
+    if (!Array.isArray(f.blocks)) f.blocks = [];
+    ensureIds(f.blocks);
+  }
+}
+
+function newFunction() {
+  return { _id: nextId++, name: "my_func", blocks: [] };
 }
 
 function ensureEventIds() {
@@ -525,15 +592,24 @@ function ensureLaunches() {
   }
   ensureTriggerIds();
   ensureEventIds();
+  ensureFunctionIds();
 }
 
 function cleanProgram(p) {
   const conv = (b) => {
-    const o = { kind: b.kind, a: b.a == null ? "" : String(b.a), op: b.op || "<=", b: b.b == null ? "" : String(b.b) };
+    const o = { id: b._id || 0, kind: b.kind, a: b.a == null ? "" : String(b.a), op: b.op || "<=", b: b.b == null ? "" : String(b.b) };
     if (b.kind === "turn") o.dir = b.dir || "rel";
     if (b.kind === "turn_to") o.dir = b.dir || "deg";
     if (b.kind === "engine") o.dir = b.dir || "on";
     if (b.kind === "parachute") o.dir = b.dir || "deploy";
+    if (b.kind === "deploy") o.dir = b.dir || "deploy";
+    if (b.kind === "wheel") {
+      o.dir = b.dir || "on";
+      o.title = b.title || "2";
+    }
+    if (b.kind === "hold") o.dir = b.dir || "vspeed";
+    if (b.kind === "burn") o.dir = b.dir || "prograde";
+    if (b.kind === "rcs_move") o.dir = b.dir || "up";
     if (b.kind === "dialog") {
       o.dir = b.dir || "message";
       o.title = b.title || "";
@@ -545,6 +621,10 @@ function cleanProgram(p) {
   };
   return {
     launches: (p.launches || []).map((ev) => ({ blocks: (ev.blocks || []).map(conv) })),
+    functions: (p.functions || []).map((f) => ({
+      name: f.name || "",
+      blocks: (f.blocks || []).map(conv)
+    })),
     events: (p.events || []).map((ev) => ({
       type: ev.type || "key",
       key: ev.key || "R",
@@ -568,6 +648,9 @@ function cleanProgram(p) {
 
 const canvasEl = document.getElementById("canvas");
 const worldEl = document.getElementById("canvasWorld");
+const panEl = document.getElementById("canvasPan");
+// CSS zoom 会重新栅格化文字，放大不糊；不支持时退回 transform
+const SUPPORTS_ZOOM = "zoom" in document.createElement("div").style;
 const VIEW_KEY = "sfsvizzy.view.v1";
 let viewState = { x: 22, y: 16, z: 1 };
 let panning = null;
@@ -575,7 +658,9 @@ let panning = null;
 /** 浏览器画布的“自由视角”：平移 + 缩放，独立于游戏相机。 */
 function applyView() {
   if (!worldEl) return;
-  worldEl.style.transform = "translate(" + viewState.x + "px," + viewState.y + "px) scale(" + viewState.z + ")";
+  if (panEl) panEl.style.transform = "translate(" + viewState.x + "px," + viewState.y + "px)";
+  if (SUPPORTS_ZOOM) worldEl.style.zoom = viewState.z;
+  else worldEl.style.transform = "scale(" + viewState.z + ")";
   const pct = document.getElementById("zoomPct");
   if (pct) pct.textContent = Math.round(viewState.z * 100) + "%";
   try { localStorage.setItem(VIEW_KEY, JSON.stringify(viewState)); } catch (_) {}
@@ -651,6 +736,7 @@ applyView();
 function render() {
   ensureLaunches();
   renderLaunches();
+  renderFunctions();
   renderEvents();
   renderTriggers();
 }
@@ -664,7 +750,7 @@ function renderLaunches() {
   program.launches.forEach((ev, index) => {
     const card = el("div", "launch");
     const bar = el("div", "eventbar");
-    bar.appendChild(el("span", "evlabel", "ON START"));
+    bar.appendChild(el("span", "evlabel", "On start"));
     bar.appendChild(el("span", "grow"));
 
     const del = el("button", "del", "x");
@@ -698,7 +784,7 @@ function renderEvents() {
     const card = el("div", "trigger");
     const bar = el("div", "triggerbar");
 
-    bar.appendChild(el("span", "tlabel", "ON"));
+    bar.appendChild(el("span", "tlabel", "On"));
     bar.appendChild(eventTypeSelect(ev));
     if ((ev.type || "key") === "key") bar.appendChild(field(ev, "key", 42, "R"));
 
@@ -733,7 +819,7 @@ function renderEvents() {
 function eventTypeSelect(ev) {
   const sel = el("select", "op");
   sel.style.flex = "0 0 auto";
-  [["key", "KEY"], ["stage", "STAGE"], ["landed", "LANDED"], ["dock", "DOCK"]].forEach((pair) => {
+  [["key", "Key"], ["stage", "Stage"], ["landed", "Landed"], ["dock", "Dock"], ["crash", "Crash"]].forEach((pair) => {
     const opt = el("option", null, pair[1]);
     opt.value = pair[0];
     if ((ev.type || "key") === pair[0]) opt.selected = true;
@@ -742,6 +828,34 @@ function eventTypeSelect(ev) {
   sel.addEventListener("change", () => { ev.type = sel.value; render(); scheduleSave(); });
   sel.addEventListener("mousedown", (e) => e.stopPropagation());
   return sel;
+}
+
+function renderFunctions() {
+  const wrap = document.getElementById("functions");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  if (!Array.isArray(program.functions)) program.functions = [];
+
+  program.functions.forEach((f, index) => {
+    const card = el("div", "trigger");
+    const bar = el("div", "triggerbar");
+    bar.appendChild(el("span", "tlabel", "FUNC"));
+    bar.appendChild(field(f, "name", 90, "my_func"));
+    bar.appendChild(el("span", "grow"));
+    const del = el("button", "del", "x");
+    del.title = "delete function";
+    del.addEventListener("click", () => {
+      program.functions.splice(index, 1);
+      render();
+      scheduleSave();
+    });
+    bar.appendChild(del);
+    card.appendChild(bar);
+    const container = el("div", "container");
+    card.appendChild(container);
+    wrap.appendChild(card);
+    renderContainer(f.blocks || (f.blocks = []), container, ["f", index]);
+  });
 }
 
 /** 高度触发事件：画在 ON LAUNCH 上方，每条带自己的容器。 */
@@ -755,7 +869,7 @@ function renderTriggers() {
     const card = el("div", "trigger");
     const bar = el("div", "triggerbar");
 
-    bar.appendChild(el("span", "tlabel", "ON ALTITUDE"));
+    bar.appendChild(el("span", "tlabel", "On altitude"));
     bar.appendChild(modeSelect(t));
     bar.appendChild(opSelect(t));
     bar.appendChild(field(t, "value", 78, "10000"));
@@ -812,6 +926,9 @@ function getList(path) {
   } else if (path[0] === "t") {
     list = program.triggers[path[1]].blocks;
     i = 2;
+  } else if (path[0] === "f") {
+    list = program.functions[path[1]].blocks;
+    i = 2;
   } else if (path[0] === "e") {
     list = program.events[path[1]].blocks;
     i = 2;
@@ -837,6 +954,7 @@ function renderContainer(list, parent, path) {
 function renderBlock(list, index, path, parent) {
   const b = list[index];
   const row = el("div", "block");
+  if (b._id) row.dataset.id = b._id;
   row.style.setProperty("--c", KIND_COLOR[b.kind] || "#4b5563");
 
   const handle = el("span", "handle", "::");
@@ -875,6 +993,56 @@ function renderBlock(list, index, path, parent) {
     case "engine":
       row.appendChild(choiceSelect(b, [["on", "on"], ["off", "off"]]));
       row.appendChild(field(b, "a", 44, "all"));
+      break;
+    case "deploy":
+      row.appendChild(choiceSelect(b, [["deploy", "deploy"], ["retract", "retract"]]));
+      row.appendChild(field(b, "a", 44, "all"));
+      break;
+    case "call":
+      row.appendChild(field(b, "a", 90, "my_func"));
+      break;
+    case "toggle":
+    case "random":
+      row.appendChild(field(b, "a", 80, "value"));
+      break;
+    case "warp":
+      row.appendChild(field(b, "a", 40, "4"));
+      row.appendChild(el("span", "dim", "0 = off"));
+      break;
+    case "hold":
+      row.appendChild(choiceSelect(b, [["vspeed", "vspeed"], ["altitude", "altitude AGL"]]));
+      row.appendChild(field(b, "a", 46, "0"));
+      row.appendChild(el("span", "dim", "sec"));
+      row.appendChild(field(b, "b", 30, "10"));
+      break;
+    case "burn":
+      row.appendChild(choiceSelect(b, [["prograde", "prograde"], ["retrograde", "retrograde"]]));
+      row.appendChild(field(b, "a", 48, "100"));
+      row.appendChild(el("span", "dim", "m/s"));
+      break;
+    case "circularize":
+      row.appendChild(el("span", "dim", "tol"));
+      row.appendChild(field(b, "a", 52, "2000"));
+      row.appendChild(el("span", "dim", "m"));
+      break;
+    case "match":
+      row.appendChild(el("span", "dim", "tol"));
+      row.appendChild(field(b, "a", 42, "1"));
+      row.appendChild(el("span", "dim", "m/s"));
+      break;
+    case "rcs_move":
+      row.appendChild(choiceSelect(b, [["up", "up"], ["down", "down"], ["left", "left"], ["right", "right"]]));
+      row.appendChild(el("span", "dim", "sec"));
+      row.appendChild(field(b, "a", 30, "2"));
+      break;
+    case "wheel":
+      row.appendChild(choiceSelect(b, [["on", "on"], ["off", "off"], ["power", "power"], ["steer", "steer"]]));
+      row.appendChild(field(b, "a", 40, "all"));
+      if (b.dir === "power" || b.dir === "steer") {
+        row.appendChild(field(b, "b", 36, "0.5"));
+        row.appendChild(el("span", "dim", "sec"));
+        row.appendChild(field(b, "title", 28, "2"));
+      }
       break;
     case "parachute":
       row.appendChild(choiceSelect(b, [["deploy", "deploy"], ["cut", "cut"]]));
@@ -937,6 +1105,7 @@ function renderBlock(list, index, path, parent) {
   // 整块都可拖（输入框/下拉/按钮除外），和 Vizzy 一样
   row.draggable = true;
   row.addEventListener("dragstart", (e) => {
+    dragStart();
     if (e.target.closest("input,select,button,label")) { e.preventDefault(); return; }
     dragId = b._id;
     e.dataTransfer.effectAllowed = "move";
@@ -1000,13 +1169,14 @@ function opSelect(b) {
   return sel;
 }
 
-const DIRS = ["deg", "up", "down", "prograde", "retrograde"];
+const DIRS = ["deg", "up", "down", "prograde", "retrograde", "target"];
 const DIR_LABELS = {
   deg: "deg from zenith (0 = up)",
   up: "zenith (radial out)",
   down: "nadir (to surface)",
   prograde: "prograde (along velocity)",
-  retrograde: "retrograde (against velocity)"
+  retrograde: "retrograde (against velocity)",
+  target: "target (map selection)"
 };
 
 function dirSelect(b) {
@@ -1129,6 +1299,10 @@ function findBlock(id) {
     const r = scan(ev.blocks || []);
     if (r) return r;
   }
+  for (const f of program.functions || []) {
+    const r = scan(f.blocks || []);
+    if (r) return r;
+  }
   for (const ev of program.events || []) {
     const r = scan(ev.blocks || []);
     if (r) return r;
@@ -1145,7 +1319,7 @@ function findBlock(id) {
 /* ------------------------------------------------------------------ */
 
 const PALETTE_GROUPS = [
-  ["EVENTS", [
+  ["Events", [
     ["@launch", "On Start"],
     ["@trigger", "On Altitude Trigger"],
     ["@key", "On Key"],
@@ -1153,7 +1327,7 @@ const PALETTE_GROUPS = [
     ["@landed", "On Landed"],
     ["@dock", "On Dock"]
   ]],
-  ["FLIGHT", [
+  ["Flight", [
     ["wait", "Wait (sec)"],
     ["wait_until", "Wait Until"],
     ["set_throttle", "Set Throttle"],
@@ -1161,20 +1335,36 @@ const PALETTE_GROUPS = [
     ["throttle_off", "Throttle Off"],
     ["rcs_on", "RCS On"],
     ["rcs_off", "RCS Off"],
+    ["rcs_move", "RCS Move"],
     ["turn", "Turn Left / Right"],
     ["turn_to", "Turn To"],
+    ["turn_target", "Turn to Target"],
     ["stage", "Stage"],
     ["engine", "Engine On / Off"],
-    ["parachute", "Parachute"]
+    ["parachute", "Parachute"],
+    ["deploy", "Deploy / Retract"],
+    ["wheel", "Wheel"],
+    ["hold", "Hold (PID)"],
+    ["warp", "Warp"]
   ]],
-  ["LOGIC", [
+  ["Logic", [
     ["set_var", "Set Variable"],
     ["log", "Log"],
     ["if", "If / Then / Else"],
     ["while", "While / Do"],
     ["repeat", "Repeat (times)"],
     ["break", "Break (exit loop)"],
-    ["fail", "Fail (abort)"]
+    ["fail", "Fail (abort)"],
+    ["continue", "Continue"],
+    ["toggle", "Toggle Variable"],
+    ["random", "Random 0..1"]
+  ]],
+  ["Guidance", [
+    ["burn", "Burn dv"]
+  ]],
+  ["Functions", [
+    ["@func", "New Function"],
+    ["call", "Call Function"]
   ]],
   ["UI", [
     ["dialog", "Popup / Input"]
@@ -1206,6 +1396,13 @@ const PALETTE_GROUPS = [
           canvasEl.scrollTop = 0;
           return;
         }
+        if (kind === "@func") {
+          ensureFunctionIds();
+          program.functions.push(newFunction());
+          render();
+          scheduleSave();
+          return;
+        }
         if (kind === "@key" || kind === "@stage" || kind === "@landed" || kind === "@dock") {
           ensureEventIds();
           program.events.push(newEvent(kind.slice(1)));
@@ -1225,6 +1422,7 @@ const PALETTE_GROUPS = [
       if (!kind.startsWith("@")) {
         btn.draggable = true;
         btn.addEventListener("dragstart", (e) => {
+          dragStart();
           paletteDrag = { kind };
           e.dataTransfer.effectAllowed = "copy";
           try { e.dataTransfer.setData("text/plain", "palette:" + kind); } catch (_) {}
@@ -1303,6 +1501,28 @@ const telemBars = {};
 
 const consoleEl = document.getElementById("console");
 
+function showError(text) {
+  const bar = document.getElementById("errbar");
+  const elMsg = document.getElementById("errmsg");
+  if (bar) bar.hidden = false;
+  if (elMsg) elMsg.textContent = "Error: " + text;
+  addLog("ERROR: " + text, "err");
+}
+
+function clearError() {
+  const bar = document.getElementById("errbar");
+  if (bar) bar.hidden = true;
+}
+
+function highlightBlock(id) {
+  if (!id) return;
+  const row = document.querySelector('.block[data-id="' + id + '"]');
+  if (!row) return;
+  row.classList.add("err");
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => row.classList.remove("err"), 3000);
+}
+
 function addLog(line, cls) {
   const d = el("div", cls || null);
   const ts = el("span", "ts", new Date().toLocaleTimeString() + "  ");
@@ -1312,6 +1532,264 @@ function addLog(line, cls) {
   while (consoleEl.childElementCount > 300) consoleEl.removeChild(consoleEl.firstChild);
   consoleEl.scrollTop = consoleEl.scrollHeight;
 }
+
+
+
+
+/* 拖动时：显示连接箭头，并高亮最近的插入点（磁吸） */
+let nearSlot = null;
+
+function setNearSlot(slot) {
+  if (nearSlot === slot) return;
+  if (nearSlot) nearSlot.classList.remove("near");
+  nearSlot = slot;
+  if (slot) slot.classList.add("near");
+}
+
+function dragStart() { document.body.classList.add("dragging"); }
+function dragEnd() { document.body.classList.remove("dragging"); setNearSlot(null); }
+
+document.addEventListener("dragover", (e) => {
+  if (!dragId && !paletteDrag) return;
+  const slots = document.querySelectorAll(".slot");
+  let best = null, bestDist = Infinity;
+  for (const s of slots) {
+    const r = s.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    const d = dx * dx + dy * dy;
+    if (d < bestDist) { bestDist = d; best = s; }
+  }
+  setNearSlot(best);
+});
+document.addEventListener("drop", dragEnd);
+document.addEventListener("dragend", dragEnd);
+
+
+/* ------------------------------------------------------------------ */
+/* 主题：跟随系统 / 亮灰 / 深色                                       */
+/* ------------------------------------------------------------------ */
+
+const THEME_KEY = "sfsvizzy.theme.v1";
+const THEMES = ["auto", "light", "dark"];
+
+function currentTheme() {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    if (THEMES.indexOf(v) >= 0) return v;
+  } catch (_) {}
+  return "auto";
+}
+
+function applyTheme(mode) {
+  if (THEMES.indexOf(mode) < 0) mode = "auto";
+  document.body.classList.toggle("theme-light", mode === "light");
+  document.body.classList.toggle("theme-dark", mode === "dark");
+  try { localStorage.setItem(THEME_KEY, mode); } catch (_) {}
+  const btn = document.getElementById("btnTheme");
+  if (btn) {
+    btn.textContent = mode === "light" ? "☀" : mode === "dark" ? "☾" : "◐";
+    btn.title = "Theme: " + mode + " (click to switch)";
+  }
+  const label = document.getElementById("themeLabel");
+  if (label) label.textContent = "Theme: " + mode;
+}
+
+function cycleTheme() {
+  const order = ["auto", "light", "dark"];
+  const next = order[(order.indexOf(currentTheme()) + 1) % order.length];
+  applyTheme(next);
+}
+
+document.getElementById("btnTheme")?.addEventListener("click", cycleTheme);
+applyTheme(currentTheme());
+
+/* ------------------------------------------------------------------ */
+/* 左侧主菜单：积木 / 文件 / 视图 / 帮助                               */
+/* ------------------------------------------------------------------ */
+
+const MENU_TITLES = { blocks: "Blocks", file: "File", view: "View", help: "Help" };
+
+function setMenu(name) {
+  const head = document.getElementById("phead");
+  const list = document.getElementById("paletteList");
+  const menu = document.getElementById("pmenu");
+  const search = document.querySelector(".psearch");
+  if (head) head.textContent = MENU_TITLES[name] || name;
+
+  const isBlocks = name === "blocks";
+  const hints = document.getElementById("paletteHints");
+  if (list) list.hidden = !isBlocks;
+  if (search) search.hidden = !isBlocks;
+  if (hints) hints.hidden = !isBlocks;
+  if (menu) {
+    menu.hidden = isBlocks;
+    menu.innerHTML = "";
+    const items = MENU_ITEMS[name] || [];
+    for (const it of items) {
+      if (it.group) {
+        menu.appendChild(el("div", "mgroup", it.group));
+        continue;
+      }
+      const btn = el("button", "btn mbtn", it.label);
+      btn.addEventListener("click", () => { try { it.action(); } catch (e) { console.warn(e); } });
+      menu.appendChild(btn);
+    }
+  }
+
+  for (const b of document.querySelectorAll("#rail .rbtn"))
+    b.classList.toggle("active", b.dataset.menu === name);
+}
+
+function exportProgram() {
+  const blob = new Blob([JSON.stringify(program, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "program.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function importProgram() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        program = data;
+        render();
+        scheduleSave();
+      } catch (e) {
+        alert("Invalid program file: " + e.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
+const MENU_ITEMS = {
+  file: [
+    { group: "Program" },
+    { label: "New program", action: () => { if (confirm("Clear the whole program?")) { program = { launches: [{ blocks: [] }], events: [], functions: [], triggers: [], variables: {} }; render(); scheduleSave(); } } },
+    { label: "Save", action: () => document.getElementById("btnSave").click() },
+    { label: "Load from game", action: () => document.getElementById("btnFromGame").click() },
+    { label: "Export JSON", action: exportProgram },
+    { label: "Import JSON", action: importProgram },
+    { group: "Danger" },
+    { label: "Clear all", action: () => document.getElementById("btnClear").click() }
+  ],
+  view: [
+    { group: "View" },
+    { label: "Zoom reset", action: () => { viewState = { x: 22, y: 16, z: 1 }; applyView(); } },
+    { label: "Zoom in", action: () => zoomCenter(1.15) },
+    { label: "Zoom out", action: () => zoomCenter(1 / 1.15) },
+    { label: "Toggle telemetry", action: () => document.getElementById("btnToggleBottom").click() },
+    { label: "Toggle palette", action: () => document.getElementById("btnTogglePalette").click() },
+    { label: "Theme: auto", action: () => { applyTheme("auto"); setMenu("view"); } },
+    { label: "Theme: light", action: () => { applyTheme("light"); setMenu("view"); } },
+    { label: "Theme: dark", action: () => { applyTheme("dark"); setMenu("view"); } },
+    { label: "Blocks / Code", action: () => document.getElementById("viewCode").click() },
+    { group: "Clipboard" },
+    { label: "Copy program text", action: (e) => copyText(codeTextEl ? codeTextEl.value : "", e) },
+    { label: "Copy console log", action: (e) => { const b = document.getElementById("console"); copyText(b ? b.innerText : "", e); } }
+  ],
+  help: [
+    { group: "Help" },
+    { label: "Open documentation", action: () => document.getElementById("btnHelp").click() },
+    { label: "About", action: () => alert("SFS Vizzy\nBrowser editor for Spaceflight Simulator (PC 1.6).\n\nF8 open · R run · P stop · H part numbers") }
+  ]
+};
+
+document.getElementById("rail")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".rbtn");
+  if (!btn) return;
+  setMenu(btn.dataset.menu);
+});
+
+/* ------------------------------------------------------------------ */
+/* 复制 / 过滤 / 搜索                                                 */
+/* ------------------------------------------------------------------ */
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (__) {}
+    ta.remove();
+  }
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = "OK";
+    setTimeout(() => { btn.textContent = old; }, 900);
+  }
+}
+
+function applyPaletteFilter() {
+  const input = document.getElementById("paletteSearch");
+  const wrap = document.getElementById("paletteList");
+  if (!input || !wrap) return;
+  const q = input.value.trim().toLowerCase();
+  const kids = Array.from(wrap.children);
+  for (const node of kids) {
+    if (node.classList.contains("psec")) continue;
+    const label = (node.textContent || "").toLowerCase();
+    node.style.display = (!q || label.indexOf(q) >= 0) ? "" : "none";
+  }
+  // 分组标题：整组都被过滤掉就隐藏
+  for (let i = 0; i < kids.length; i++) {
+    const node = kids[i];
+    if (!node.classList.contains("psec")) continue;
+    let visible = 0;
+    for (let j = i + 1; j < kids.length; j++) {
+      if (kids[j].classList.contains("psec")) break;
+      if (kids[j].style.display !== "none") visible++;
+    }
+    node.style.display = visible > 0 ? "" : "none";
+  }
+}
+
+function applyLogFilter() {
+  const input = document.getElementById("logFilter");
+  const box = document.getElementById("console");
+  if (!input || !box) return;
+  const q = input.value.trim().toLowerCase();
+  for (const line of Array.from(box.children)) {
+    const text = (line.textContent || "").toLowerCase();
+    line.style.display = (!q || text.indexOf(q) >= 0) ? "" : "none";
+  }
+}
+
+document.getElementById("paletteSearch")?.addEventListener("input", applyPaletteFilter);
+document.getElementById("logFilter")?.addEventListener("input", applyLogFilter);
+document.getElementById("btnCopyLog")?.addEventListener("click", (e) => {
+  const box = document.getElementById("console");
+  copyText(box ? box.innerText : "", e.currentTarget);
+});
+document.getElementById("btnClearLog")?.addEventListener("click", () => {
+  const box = document.getElementById("console");
+  if (box) box.innerHTML = "";
+});
+document.getElementById("btnCopyVars")?.addEventListener("click", (e) => {
+  const box = document.getElementById("vars");
+  copyText(box ? box.innerText : "", e.currentTarget);
+});
+document.getElementById("btnCopyCode")?.addEventListener("click", (e) => {
+  copyText(codeTextEl ? codeTextEl.value : "", e.currentTarget);
+});
+
+window.addEventListener("load", () => { applyPaletteFilter(); applyLogFilter(); });
 
 /* ------------------------------------------------------------------ */
 /* WebSocket                                                           */
@@ -1349,6 +1827,9 @@ function connect() {
       onState(msg);
     } else if (msg.type === "log") {
       addLog(msg.line);
+    } else if (msg.type === "error") {
+      showError(msg.message || "unknown error");
+      highlightBlock(msg.blockId);
     } else if (msg.type === "runstate") {
       running = !!msg.running;
       btnStop.disabled = !running;
@@ -1398,11 +1879,12 @@ function applyProgram(p) {
     program = {
       launches: launches,
       events: (p && p.events) || [],
+      functions: (p && p.functions) || [],
       triggers: (p && p.triggers) || [],
       variables: (p && p.variables) || {}
     };
   } catch (_) {
-    program = { launches: [{ blocks: [] }], events: [], triggers: [], variables: {} };
+    program = { launches: [{ blocks: [] }], events: [], functions: [], triggers: [], variables: {} };
   }
   ensureLaunches();
   render();
@@ -1444,13 +1926,25 @@ function onState(s) {
 
 let saveTimer = null;
 
+let programDirty = false;
+
+window.addEventListener("beforeunload", (e) => {
+  if (!programDirty) return;
+  e.preventDefault();
+  e.returnValue = "";
+  return "";
+});
+
 function scheduleSave() {
+  programDirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveLocal();
     if (connected) send({ type: "save", program: cleanProgram(program) });
   }, 600);
 }
+
+function markClean() { programDirty = false; }
 
 function saveLocal() {
   try {
@@ -1463,10 +1957,13 @@ function saveLocal() {
 /* Buttons                                                             */
 /* ------------------------------------------------------------------ */
 
+document.getElementById("errclose")?.addEventListener("click", clearError);
+
 const btnRun = document.getElementById("btnRun");
 const btnStop = document.getElementById("btnStop");
 
 btnRun.addEventListener("click", () => {
+  clearError();
   if (view === "code" && !applyCode(false)) return;   // 先把代码应用回程序
   if (send({ type: "run", program: cleanProgram(program) })) {
     addLog("run requested (" + totalBlocks() + " blocks)");
@@ -1490,7 +1987,7 @@ document.getElementById("btnFromGame").addEventListener("click", () => {
 
 document.getElementById("btnClear").addEventListener("click", () => {
   if (!confirm("Clear the whole program (all ON START events and altitude triggers)?")) return;
-  program = { launches: [{ blocks: [] }], events: [], triggers: [], variables: {} };
+  program = { launches: [{ blocks: [] }], events: [], functions: [], triggers: [], variables: {} };
   render();
   saveLocal();
   send({ type: "save", program: cleanProgram(program) });
@@ -1500,6 +1997,7 @@ document.getElementById("btnClear").addEventListener("click", () => {
 function totalBlocks() {
   let n = 0;
   for (const ev of program.launches || []) n += countBlocks(ev.blocks || []);
+  for (const f of program.functions || []) n += countBlocks(f.blocks || []);
   for (const ev of program.events || []) n += 1 + countBlocks(ev.blocks || []);
   for (const t of program.triggers || []) n += 1 + countBlocks(t.blocks || []);
   return n;
@@ -1560,6 +2058,25 @@ function programToCode() {
       case "stage": out.push(pad + "stage" + (b.a ? " " + b.a : "")); break;
       case "engine": out.push(pad + "engine " + (b.a || "all") + " " + (b.dir || "on")); break;
       case "parachute": out.push(pad + "parachute " + (b.a || "all") + " " + (b.dir || "deploy")); break;
+      case "deploy": out.push(pad + (b.dir === "retract" ? "retract " : "deploy ") + (b.a || "all")); break;
+      case "continue": out.push(pad + "continue"); break;
+      case "toggle": out.push(pad + "toggle " + (b.a || "value")); break;
+      case "random": out.push(pad + "random " + (b.a || "value")); break;
+      case "burn": out.push(pad + "burn dv " + (b.a || "0") + " " + (b.dir || "prograde")); break;
+      case "circularize": out.push(pad + "circularize " + (b.a || "2000")); break;
+      case "match": out.push(pad + "match velocity " + (b.a || "1")); break;
+      case "rcs_move": out.push(pad + "rcs " + (b.dir || "up") + " " + (b.a || "2")); break;
+      case "call": out.push(pad + "call " + (b.a || "my_func")); break;
+      case "warp": out.push(pad + "warp " + (b.a || "0")); break;
+      case "hold": out.push(pad + "hold " + (b.dir || "vspeed") + " " + (b.a || "0") + " " + (b.b || "10")); break;
+      case "wheel": {
+        const d = b.dir || "on";
+        const sel = b.a || "all";
+        if (d === "power") out.push(pad + "wheel " + sel + " power " + (b.b || "0") + " " + (b.title || "2"));
+        else if (d === "steer") out.push(pad + "wheel " + sel + " steer " + (b.b || "0") + " " + (b.title || "1"));
+        else out.push(pad + "wheel " + sel + " " + d);
+        break;
+      }
       case "set_var": out.push(pad + "set " + (b.a || "x") + " = " + (b.b || "0")); break;
       case "log":
       case "fail":
@@ -1605,6 +2122,12 @@ function programToCode() {
     out.push("end");
   }
 
+  for (const f of program.functions || []) {
+    out.push("func " + (f.name || "my_func"));
+    for (const b of f.blocks || []) emitBlock(b, 1);
+    out.push("end");
+  }
+
   for (const ev of program.events || []) {
     if ((ev.type || "key") === "key") out.push('on key "' + (ev.key || "R") + '"');
     else out.push("on " + (ev.type || "stage"));
@@ -1626,6 +2149,7 @@ function parseCode(text) {
   const lines = String(text || "").split(/\r?\n/);
   const launches = [];
   const events = [];
+  const functions = [];
   const triggers = [];
   const stack = [];   // { kind, block, trigger, list }
   let cur = null;     // 当前写入的容器；null = 还没进事件，按隐式 ON START 处理
@@ -1694,6 +2218,39 @@ function parseCode(text) {
       stack.push({ kind: "launch", list: ev.blocks });
       cur = ev.blocks;
       continue;
+    }
+    if ((m = line.match(/^burn\s+dv\s+(\S+)(?:\s+(prograde|retrograde))?$/i))) {
+      const b = newBlock("burn"); b.a = m[1]; b.dir = (m[2] || "prograde").toLowerCase(); add(b); continue;
+    }
+    if ((m = line.match(/^circularize(?:\s+(\S+))?$/i))) {
+      const b = newBlock("circularize"); b.a = m[1] || "2000"; add(b); continue;
+    }
+    if ((m = line.match(/^match\s+velocity(?:\s+(\S+))?$/i))) {
+      const b = newBlock("match"); b.a = m[1] || "1"; add(b); continue;
+    }
+    if ((m = line.match(/^on\s+crash$/i))) {
+      const ev = newEvent("crash");
+      events.push(ev);
+      stack.push({ kind: "event", list: ev.blocks });
+      cur = ev.blocks;
+      continue;
+    }
+    if ((m = line.match(/^rcs\s+(up|down|left|right)\s+(\S+)$/i))) {
+      const b = newBlock("rcs_move"); b.dir = m[1].toLowerCase(); b.a = m[2]; add(b); continue;
+    }
+    if ((m = line.match(/^continue$/i))) { add(newBlock("continue")); continue; }
+    if ((m = line.match(/^toggle\s+(\w+)$/i))) { const b = newBlock("toggle"); b.a = m[1]; add(b); continue; }
+    if ((m = line.match(/^random\s+(\w+)$/i))) { const b = newBlock("random"); b.a = m[1]; add(b); continue; }
+    if ((m = line.match(/^func\s+(\w+)$/i))) {
+      const f = newFunction();
+      f.name = m[1];
+      functions.push(f);
+      stack.push({ kind: "func", list: f.blocks });
+      cur = f.blocks;
+      continue;
+    }
+    if ((m = line.match(/^call\s+(\w+)$/i))) {
+      const b = newBlock("call"); b.a = m[1]; add(b); continue;
     }
     if ((m = line.match(/^on\s+key\s+"(.*?)"$/i))) {
       const ev = newEvent("key");
@@ -1775,10 +2332,28 @@ function parseCode(text) {
     if ((m = line.match(/^turn\s+(.+)$/i))) {
       const b = newBlock("turn"); b.dir = "rel"; b.a = m[1].trim(); add(b); continue;
     }
-    if ((m = line.match(/^engine\s+(\S+)\s+(on|off)$/i))) {
+    if ((m = line.match(/^engine\s+((?:stage\s+\d+)|\S+)\s+(on|off)$/i))) {
       const b = newBlock("engine"); b.a = m[1]; b.dir = m[2].toLowerCase(); add(b); continue;
     }
-    if ((m = line.match(/^parachute\s+(\S+)\s+(deploy|cut)$/i))) {
+    if ((m = line.match(/^warp\s+(\S+)$/i))) {
+      const b = newBlock("warp"); b.a = m[1]; add(b); continue;
+    }
+    if ((m = line.match(/^hold\s+(vspeed|altitude)\s+(\S+)(?:\s+(\S+))?$/i))) {
+      const b = newBlock("hold"); b.dir = m[1].toLowerCase(); b.a = m[2]; b.b = m[3] || "10"; add(b); continue;
+    }
+    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|\S+)\s+(on|off)$/i))) {
+      const b = newBlock("wheel"); b.a = m[1]; b.dir = m[2].toLowerCase(); add(b); continue;
+    }
+    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|\S+)\s+power\s+(\S+)(?:\s+(\S+))?$/i))) {
+      const b = newBlock("wheel"); b.a = m[1]; b.dir = "power"; b.b = m[2]; b.title = m[3] || "2"; add(b); continue;
+    }
+    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|\S+)\s+steer\s+(\S+)(?:\s+(\S+))?$/i))) {
+      const b = newBlock("wheel"); b.a = m[1]; b.dir = "steer"; b.b = m[2]; b.title = m[3] || "1"; add(b); continue;
+    }
+    if ((m = line.match(/^(deploy|retract)\s+((?:stage\s+\d+)|\S+)$/i))) {
+      const b = newBlock("deploy"); b.dir = m[1].toLowerCase(); b.a = m[2]; add(b); continue;
+    }
+    if ((m = line.match(/^parachute\s+((?:stage\s+\d+)|\S+)\s+(deploy|cut)$/i))) {
       const b = newBlock("parachute"); b.a = m[1]; b.dir = m[2].toLowerCase(); add(b); continue;
     }
     if ((m = line.match(/^stage(?:\s+(\d+))?$/i))) {
@@ -1797,7 +2372,7 @@ function parseCode(text) {
   }
 
   if (stack.length) err(lines.length, "missing end");
-  return { launches: launches, events: events, triggers: triggers };
+  return { launches: launches, events: events, functions: functions, triggers: triggers };
 }
 
 function applyCode(switchToBlocks) {
@@ -1806,6 +2381,7 @@ function applyCode(switchToBlocks) {
     program = {
       launches: parsed.launches && parsed.launches.length ? parsed.launches : [{ blocks: [] }],
       events: parsed.events,
+      functions: parsed.functions,
       triggers: parsed.triggers,
       variables: program.variables || {}
     };
@@ -1854,8 +2430,8 @@ const helpModal = document.getElementById("helpModal");
 const HELP_HTML = `
 <h2>Quick start</h2>
 <p>Press <code>F8</code> in game to open this page. Click a block in the left palette to append it to the
-last <b>ON START</b>, or drag it onto any glowing gap to place it exactly. Drag blocks inside the canvas
-to reorder. <b>RUN</b> executes on the current rocket (flight scene only). Programs save both in the
+last <b>On start</b>, or drag it onto any glowing gap to place it exactly. Drag blocks inside the canvas
+to reorder. <b>Run</b> executes on the current rocket (flight scene only). Programs save both in the
 browser (localStorage) and in <code>Mods/SFSVizzyMod/program.json</code>.</p>
 
 <h2>Free camera (canvas)</h2>
@@ -1887,6 +2463,14 @@ end</pre>
   <code>turn rel N</code> is relative to the current nose.</td></tr>
 <tr><td><code>turn to TARGET [in S]</code></td><td>Absolute attitude: degrees (0 = zenith), <code>up</code>, <code>down</code>,
   <code>prograde</code>, <code>retrograde</code>.</td></tr>
+<tr><td><code>deploy / retract selector</code></td><td>Expand/retract folding parts (legs, solar panels); same selector as engine.</td></tr>
+<tr><td><code>wheel selector on|off|power|steer</code></td><td>Wheel control; <code>steer 0.4 2</code> steers 0.4 for 2 seconds.</td></tr>
+<tr><td><code>hold vspeed|altitude N S</code></td><td>PID hold of vertical speed or AGL for S seconds, with hover feed-forward.</td></tr>
+<tr><td><code>burn dv N prograde/retrograde</code></td><td>Burn a Δv, stopping on the speed change.</td></tr>
+<tr><td><code>circularize tol N</code></td><td>Advanced/optional: circularize on the current circular speed; hidden from the palette, still writable in code.</td></tr>
+<tr><td><code>match velocity tol N</code></td><td>Kill the relative velocity to the map target down to N m/s.</td></tr>
+<tr><td><code>rcs up/down/left/right S</code></td><td>RCS translation for S seconds, then zeroed.</td></tr>
+<tr><td><code>warp N</code></td><td>Time warp up to step N; <code>warp 0</code> turns it off.</td></tr>
 <tr><td><code>stage [N]</code></td><td>Activate the next stage, or stage N (1 = next).</td></tr>
 <tr><td><code>engine all|2 on|off</code></td><td>Switch engines. 1-based order; <code>all</code> = every engine,
   <code>stage 1</code> = engines in stage 1.</td></tr>
@@ -1896,17 +2480,19 @@ end</pre>
 <tr><td><code>log text</code></td><td>Message in game + browser console; <code>{expr}</code> interpolates values, <code>{planet}</code> the body name.</td></tr>
 <tr><td><code>popup "Title" "Body"</code></td><td>In-game popup. Body supports <code>{expr}</code>; optional <code>timeout N</code> closes it after N seconds.</td></tr>
 <tr><td><code>input "Title" "Body" -&gt; var</code></td><td>In-game number input; stores the value in <code>var</code>. Optional <code>timeout N</code>.</td></tr>
+<tr><td><code>func name … end</code> / <code>call name</code></td><td>User function (no parameters), recursion limited to 32 levels.</td></tr>
+<tr><td><code>continue / toggle / random</code></td><td>Skip the rest of the loop, flip a boolean, write a 0..1 random value.</td></tr>
 <tr><td><code>if / else / end</code></td><td>Conditional branch.</td></tr>
 <tr><td><code>while cond / end</code></td><td>Loop while true (one statement per frame, never freezes the game).</td></tr>
 <tr><td><code>repeat N / end</code></td><td>Repeat N times.</td></tr>
 <tr><td><code>break</code></td><td>Exit the nearest while / repeat.</td></tr>
 <tr><td><code>fail msg</code></td><td>Abort the program with a loud message.</td></tr>
-<tr><td><code>ON KEY "K"</code></td><td>Event: fires while the program runs and that key is pressed.
+<tr><td><code>on key "K"</code></td><td>Event: fires while the program runs and that key is pressed.
   Pick a key that isn't a game hotkey (K is a good choice).</td></tr>
-<tr><td><code>ON STAGE</code></td><td>Event: fires when a stage is activated.</td></tr>
-<tr><td><code>ON LANDED</code></td><td>Event: fires on touchdown.</td></tr>
-<tr><td><code>ON DOCK</code></td><td>Event: fires when a docking port becomes occupied.</td></tr>
-<tr><td><code>ON ALTITUDE</code></td><td>Event: fires when AGL/ASL crosses the threshold. AGL is true height above the
+<tr><td><code>on stage</code></td><td>Event: fires when a stage is activated.</td></tr>
+<tr><td><code>on landed</code></td><td>Event: fires on touchdown.</td></tr>
+<tr><td><code>on dock</code></td><td>Event: fires when a docking port becomes occupied.</td></tr>
+<tr><td><code>on altitude</code></td><td>Event: fires when AGL/ASL crosses the threshold. AGL is true height above the
   surface (polar terrain, water counts as ground). <b>once</b> fires once; uncheck to re-arm after leaving the band by 2 m.</td></tr>
 </table>
 

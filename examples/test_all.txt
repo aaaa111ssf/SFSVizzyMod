@@ -1,0 +1,98 @@
+# SFS Vizzy test script (works with both the English and Chinese build)
+# How to run: F8 -> CODE -> paste -> Ctrl+Enter to apply -> RUN
+# Keys work after the program starts: K/J/L/1/2/3/4/5
+# 3/4/5 are orbital actions; get into orbit first, pressing them on the
+# ground wastes fuel and may flip the rocket.
+
+func announce
+  log "FUNC: announce ok"
+end
+
+on start
+  log "TEST: start"
+  set counter = 0
+  toggle flag
+  log "toggle flag = {flag}"
+  random rnd
+  log "random = {rnd}"
+  call announce
+  set throttle to 0
+  wait 1
+  log "TEST: start done"
+end
+
+on key "K"
+  log "TEST deploy: before"
+  deploy all
+  wait 1
+  retract all
+  log "TEST deploy: done"
+end
+
+on key "J"
+  log "TEST wheel: on"
+  wheel all on
+  wheel all power 0.2
+  wait 1
+  wheel all off
+  log "TEST wheel: done"
+end
+
+on key "L"
+  log "TEST rcs: up 1s"
+  rcs up 1
+  log "TEST rcs: done"
+end
+
+on key "1"
+  log "TEST hold vspeed 0 for 3s"
+  hold vspeed 0 3
+  log "TEST hold: done"
+end
+
+on key "2"
+  log "TEST warp 1 for 2s"
+  warp 1
+  wait 2
+  warp 0
+  log "TEST warp: done"
+end
+
+on key "3"
+  log "TEST burn dv 50 prograde"
+  burn dv 50 prograde
+  log "TEST burn: done"
+end
+
+on key "4"
+  log "TEST circularize tol 2000"
+  circularize 2000
+  log "TEST circularize: done"
+end
+
+on key "5"
+  log "TEST match velocity tol 1"
+  match velocity 1
+  log "TEST match: done"
+end
+
+on key "6"
+  log "TEST error: missing function (should show red banner)"
+  call no_such_function
+end
+
+on stage
+  log "EVENT: stage"
+end
+
+on landed
+  log "EVENT: landed"
+end
+
+on dock
+  log "EVENT: dock"
+end
+
+on crash
+  log "EVENT: crash"
+end

@@ -37,6 +37,7 @@ namespace SFSVizzyMod
                 go.AddComponent<Bridge>();
                 go.AddComponent<DialogUI>();
                 go.AddComponent<PartLabels>();
+                CrashWatcher.Install();
                 Debug.Log("[SFSVizzy] Loaded");
             }
             catch (Exception e)

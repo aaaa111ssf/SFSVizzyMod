@@ -231,3 +231,79 @@ mode = 0 什么都不做（想中止请按 P 或 STOP）。
 
 限制：SFS 没有可编程部件/输入框，所以“输入数字”只能在编辑器里改 mode；
 这些脚本是演示性质，参数需要按火箭推重比微调。
+
+
+附：新增积木（2026-10-31）
+
+deploy / retract（折叠件）
+  作用：展开/收起着陆腿、太阳能板等 ToggleModule 部件。
+  代码：deploy all      retract 1      deploy stage 2
+
+wheel（轮子）
+  作用：开关、动力、转向。
+  代码：wheel all on
+        wheel 1 power 0.6
+        wheel 1 steer 0.4 2     转向 0.4，持续 2 秒
+
+hold（PID 保持）
+  作用：保持垂直速度或离地高度，带悬停前馈。
+  代码：hold vspeed 0 10
+        hold altitude 1000 10
+
+warp（时间加速）
+  代码：warp 4      升到第 4 档（到不了就停在允许的最高档）
+        warp 0      关闭
+
+func / call（自定义函数，无参数）
+  代码：func boost
+          set throttle to 1
+        end
+        call boost
+
+continue / toggle / random
+  continue          跳过本轮循环剩余积木
+  toggle flag       0/1 翻转
+  random value      写入 0..1 随机数
+
+turn to target（指向地图目标）
+  代码：turn to target
+  变量：TargetDistance / TargetBearing / TargetLongitude（未选目标为 0）
+
+
+附：制导 / 事件补充（2026-10-31）
+
+burn dv N [prograde|retrograde]
+  作用：按 Δv 点火，按速度变化停火。
+  代码：burn dv 100 prograde
+
+circularize [tol]
+  作用：在拱点附近烧到 |Ap-Pe| < tol（默认 2000 m），最多 3 轮。
+  代码：circularize 2000
+
+match velocity [tol]
+  作用：消掉与地图目标的相对速度（默认 1 m/s）。
+  代码：match velocity 1
+
+rcs up|down|left|right [秒]
+  作用：RCS 平移，按火箭朝向换算世界方向，结束归零。
+  代码：rcs up 2
+
+ON CRASH
+  作用：坠毁/撞击时触发一次；Harmony 钩失败会自动禁用，不影响模组加载。
+  代码：on crash … end
+
+
+附：界面要点（2026-10-31）
+
+左侧竖排图标菜单
+  ▦ 积木（带搜索框）   ▤ 文件（新建/保存/读取/导出/导入/清空）
+  ◫ 视图（缩放/遥测/代码/复制）   ? 帮助
+
+拖动积木时
+  会显示连接箭头，并自动高亮最近的插入点（磁吸），松手落到该处。
+
+H 键编号
+  S 分级  E 发动机  P 降落伞  W 轮子  R RCS  D 分离器  L 着陆腿  A 太阳能板  T 其它折叠件
+
+日志区
+  可选中复制（COPY）、按关键字过滤、清空（CLR）。

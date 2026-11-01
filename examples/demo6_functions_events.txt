@@ -1,0 +1,67 @@
+# ===== Demo 6: custom functions + events + variables =====
+# How to run: press RUN, then press K for the key event,
+# stage once for the stage event, and land or crash for those events.
+
+func announce
+  log "demo6: announce called, count = {count}"
+  set count = count + 1
+end
+
+func report
+  log "demo6: report -> count={count} agl={AltitudeAGL} speed={Speed}"
+end
+
+on start
+  set count = 0
+  log "demo6: start"
+
+  # ---- 1 call a function three times ----
+  repeat 3
+    call announce
+    wait 1
+  end
+  call report
+
+  # ---- 2 boolean toggle and a random number ----
+  toggle flag
+  log "demo6: flag = {flag}"
+  random dice
+  log "demo6: random = {dice}"
+
+  # ---- 3 conditions and loops ----
+  if count >= 3
+    log "demo6: function ran 3 times as expected"
+  else
+    log "demo6: count wrong!"
+  end
+
+  set i = 0
+  repeat 5
+    set i = i + 1
+    if i == 2
+      continue
+    end
+    if i == 4
+      break
+    end
+    log "demo6: i = {i}"
+  end
+
+  log "demo6: done"
+end
+
+on key "K"
+  log "demo6: key K pressed"
+end
+
+on stage
+  log "demo6: stage event"
+end
+
+on landed
+  log "demo6: landed event"
+end
+
+on crash
+  log "demo6: crash event"
+end

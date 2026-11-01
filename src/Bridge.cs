@@ -300,6 +300,18 @@ namespace SFSVizzyMod
 
         // ---------------- 日志 ----------------
 
+        public void SendError(string message, Block block)
+        {
+            Debug.LogWarning("[SFSVizzy] ERROR: " + message);
+            Broadcast(new JObject
+            {
+                ["type"] = "error",
+                ["message"] = message,
+                ["blockId"] = block != null ? block.id : 0,
+                ["kind"] = block != null ? block.kind : ""
+            });
+        }
+
         private void OnRunnerLog(string line)
         {
             Log(line);
