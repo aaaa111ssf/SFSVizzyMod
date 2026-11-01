@@ -1459,23 +1459,14 @@ namespace SFSVizzyMod
 
         private bool Cond(Block b)
         {
-            double left = Eval(b.a);
-            if (!IsRunning) return false;
-            double right = Eval(b.b);
-            if (!IsRunning) return false;
+            // 整条条件当成一个表达式算，这样 and / or / not 才能跨比较生效
+            string expr;
+            if (string.IsNullOrWhiteSpace(b.op)) expr = b.a ?? "";
+            else expr = (b.a ?? "") + " " + b.op + " " + (b.b ?? "");
 
-            switch (b.op)
-            {
-                case "<": return left < right;
-                case "<=": return left <= right;
-                case ">": return left > right;
-                case ">=": return left >= right;
-                case "==": return Math.Abs(left - right) <= 1e-9 + 1e-9 * Math.Abs(left);
-                case "!=": return Math.Abs(left - right) > 1e-9 + 1e-9 * Math.Abs(left);
-                default:
-                    Fail("unknown operator '" + b.op + "'");
-                    return false;
-            }
+            double v = Eval(expr);
+            if (!IsRunning) return false;
+            return v != 0.0;
         }
 
         // log 文本里的 {表达式} 替换成数值；{planet} 替换成当前天体名。未知变量按求值错误处理。

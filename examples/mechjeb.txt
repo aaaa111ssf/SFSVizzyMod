@@ -59,8 +59,6 @@ on start
   end
 
   # ================= 3 change apsides =================
-  # no and operator in expressions, so use while + if + break
-  # to mean "not there yet AND still have tries left"
   if mode == 3
     if Apoapsis < 2000
       fail "mj3: not in orbit yet, launch first"
@@ -69,11 +67,8 @@ on start
     set tries = 0
     set maxTries = 12
 
-    while tries < maxTries
-      if abs(Apoapsis - targetAp) <= tol
-        break
-      end
-
+    # both conditions in one line: still have tries AND not there yet
+    while tries < maxTries and abs(Apoapsis - targetAp) > tol
       # wait until we are near an apsis before burning
       wait until abs(VerticalSpeed) < 3
 

@@ -27,13 +27,50 @@ namespace SFSVizzyMod
 
             public double Parse()
             {
-                double v = Comparison();
+                double v = Or();
                 Skip();
                 if (i < s.Length) throw new Exception("unexpected '" + s[i] + "'");
                 return v;
             }
 
-            // ---------- 运算优先级：比较 < 加减 < 乘除 < 乘方 < 一元负号 < 初等项 ----------
+            // ---------- 运算优先级：or < and < not < 比较 < 加减 < 乘除 < 乘方 < 一元负号 < 初等项 ----------
+
+            // or / ||：任一为真就是 1
+            private double Or()
+            {
+                double left = And();
+                while (true)
+                {
+                    int save = i;
+                    if (!(TryWord("or") || TryTake("||"))) { i = save; break; }
+                    double right = And();
+                    left = Bool(left != 0.0 || right != 0.0);
+                }
+                return left;
+            }
+
+            // and / &&：两边都真才是 1
+            private double And()
+            {
+                double left = Not();
+                while (true)
+                {
+                    int save = i;
+                    if (!(TryWord("and") || TryTake("&&"))) { i = save; break; }
+                    double right = Not();
+                    left = Bool(left != 0.0 && right != 0.0);
+                }
+                return left;
+            }
+
+            // not / !：取反
+            private double Not()
+            {
+                int save = i;
+                if (TryWord("not") || TryTake("!")) return Bool(Not() == 0.0);
+                i = save;
+                return Comparison();
+            }
 
             private double Comparison()
             {
@@ -128,7 +165,7 @@ namespace SFSVizzyMod
                 if (c == '(')
                 {
                     i++;
-                    double v = Comparison();
+                    double v = Or();
                     Skip();
                     if (i >= s.Length || s[i] != ')') throw new Exception("missing ')'");
                     i++;
@@ -177,14 +214,14 @@ namespace SFSVizzyMod
                 Skip();
                 if (i < s.Length && s[i] != ')')
                 {
-                    args.Add(Comparison());
+                    args.Add(Or());
                     while (true)
                     {
                         Skip();
                         if (i < s.Length && s[i] == ',')
                         {
                             i++;
-                            args.Add(Comparison());
+                            args.Add(Or());
                         }
                         else break;
                     }
@@ -236,6 +273,18 @@ namespace SFSVizzyMod
             private void Skip()
             {
                 while (i < s.Length && char.IsWhiteSpace(s[i])) i++;
+            }
+
+            // 匹配关键字（and / or / not），后面不能紧跟字母或数字，免得把 order 当 or
+            private bool TryWord(string word)
+            {
+                Skip();
+                int n = word.Length;
+                if (i + n > s.Length) return false;
+                if (string.CompareOrdinal(s, i, word, 0, n) != 0) return false;
+                if (i + n < s.Length && (char.IsLetterOrDigit(s[i + n]) || s[i + n] == '_')) return false;
+                i += n;
+                return true;
             }
 
             private bool TryTake(string op)

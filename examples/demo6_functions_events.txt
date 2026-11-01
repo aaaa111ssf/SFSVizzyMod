@@ -29,10 +29,15 @@ on start
   log "demo6: random = {dice}"
 
   # ---- 3 conditions and loops ----
-  if count >= 3
-    log "demo6: function ran 3 times as expected"
+  # and / or work across comparisons
+  if count >= 3 and flag == 1
+    log "demo6: function ran 3 times and flag is set"
   else
-    log "demo6: count wrong!"
+    log "demo6: condition wrong!"
+  end
+
+  if count > 99 or flag == 1
+    log "demo6: or works"
   end
 
   set i = 0
