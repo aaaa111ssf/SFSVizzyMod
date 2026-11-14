@@ -1,0 +1,44 @@
+# ===== Demo 9: deorbit onto a map target using the impact prediction =====
+# How to run: already in orbit, pick a map target first (another ship sitting
+# on the ground), then press RUN. Best on a planet with an atmosphere, since
+# that is where the drag simulation earns its keep.
+
+on start
+  if HasTarget < 1
+    fail "demo9: pick a map target in the map first"
+  end
+
+  # ---- 1 retro burn until the periapsis is inside the atmosphere ----
+  turn to retrograde in 2
+  set throttle to 0.7
+  wait until Periapsis < 30000
+  set throttle to 0
+  log "demo9: periapsis now {Periapsis} m"
+
+  # ---- 2 let the prediction settle ----
+  # TimeToImpact comes from a drag simulation, so it counts down to the real
+  # touchdown instead of the vacuum one. ImpactToTarget is how far that
+  # touchdown is from the map target.
+  wait 10
+  log "demo9: touchdown in {TimeToImpact}s, off by {ImpactToTarget} m"
+
+  # ---- 3 braking burn: re-aim retrograde while the air slows us down ----
+  # (waits forever if the prediction is invalid, i.e. it will not come down)
+  wait until TimeToImpact < 150
+  while Speed > 120
+    turn to retrograde in 0.6
+    set throttle to 1
+    wait 1
+  end
+  set throttle to 0
+  log "demo9: slowed down, agl={AltitudeAGL} vs={VerticalSpeed}"
+
+  # ---- 4 chute for the last stretch ----
+  parachute all deploy
+  wait until AltitudeAGL < 200
+  log "demo9: almost down, off target {ImpactToTarget} m"
+end
+
+on landed
+  log "demo9: touchdown"
+end

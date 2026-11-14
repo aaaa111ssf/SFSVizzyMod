@@ -2626,14 +2626,16 @@ SFS is 2D, so there is no orbital inclination: "launch to orbit" uses a target a
 <tr><td>Fuel</td><td><code>Fuel</code> (0..1), <code>FuelAmount</code>, <code>FuelCapacity</code></td></tr>
 <tr><td>Orbit</td><td><code>Apoapsis</code>, <code>Periapsis</code>, <code>Eccentricity</code>, <code>Escaping</code> (0/1),
   <code>TimeToApoapsis</code>, <code>TimeToPeriapsis</code> (s), <code>DistToApoapsis</code>, <code>DistToPeriapsis</code> (m)</td></tr>
-<tr><td>Impact</td><td><code>TimeToImpact</code> (s), <code>ImpactDistance</code> (m), <code>ImpactLongitude</code> (deg).
-  Straight orbit math, no drag: accurate on airless bodies, optimistic in an atmosphere</td></tr>
+<tr><td>Impact</td><td><code>TimeToImpact</code> (s), <code>ImpactDistance</code> (m), <code>ImpactLongitude</code> (deg),
+  <code>ImpactToTarget</code> (m, only with a map target). The coast is solved as an orbit, the atmospheric part is
+  step-by-step integrated with the game's own drag model, so touchdown is the real one and not the vacuum one</td></tr>
 <tr><td>World</td><td><code>WorldTime</code>, <code>TimewarpIndex</code>, <code>RocketCount</code></td></tr>
 <tr><td>Attitude</td><td><code>Heading</code> (-180..180, 0 = zenith), <code>AngularVel</code> (deg/s)</td></tr>
 <tr><td>Environment</td><td><code>Gravity</code>, <code>AirDensity</code>, <code>DynamicPressure</code>, <code>AtmosphereTop</code></td></tr>
 </table>
-<p><code>TimeToImpact</code> is 1e9 when the orbit never reaches the ground, so a
-<code>wait until TimeToImpact &lt; 30</code> simply never fires.</p>
+<p><code>TimeToImpact</code> is 1e9 when the rocket will not reach the ground, so a
+<code>wait until TimeToImpact &lt; 30</code> simply never fires. It also reports 1e9 while parked on the
+ground, and parachutes are not modelled: open one and the real touchdown comes sooner than predicted.</p>
 <p>On an escape trajectory there is no next apoapsis, so <code>TimeToApoapsis</code> reports 1e9 instead of 0.
 Watch out: <code>wait until TimeToApoapsis &lt; 30</code> then never fires, which is what you want.</p>
 

@@ -97,13 +97,15 @@ namespace SFSVizzyMod
             vars["TimeToImpact"] = 1e9;
             vars["ImpactDistance"] = 0.0;
             vars["ImpactLongitude"] = 0.0;
+            vars["ImpactToTarget"] = 0.0;
 
             // 轨道根数：地表静止时 TryCreateOrbit 会失败，跳过即可
             // 第 2 个参数要 true，否则近拱点时刻和平均角速度算不出来
+            Orbit orbit = null;
             try
             {
                 bool ok;
-                Orbit orbit = Orbit.TryCreateOrbit(loc, true, false, out ok);
+                orbit = Orbit.TryCreateOrbit(loc, true, false, out ok);
                 if (ok && orbit != null)
                 {
                     double pe = orbit.periapsis - loc.planet.Radius;
@@ -117,6 +119,9 @@ namespace SFSVizzyMod
                 }
             }
             catch (Exception) { }
+
+            // 落点：轨道段解析、进大气后带阻力积分，实现在 Trajectory.cs
+            FillImpact(r, orbit, loc, vars);
 
             // 世界状态：加速档位和游戏时间，写等待条件时有用
             vars["TimewarpIndex"] = WorldTime.main != null ? WorldTime.main.timewarpIndex : 0.0;
@@ -174,6 +179,27 @@ namespace SFSVizzyMod
             catch (Exception) { }
         }
 
+        // 落点：算不出来就保持 1e9 / 0，让 wait until 条件不会误触发
+        private static void FillImpact(Rocket r, Orbit orbit, Location loc, Dictionary<string, double> vars)
+        {
+            try
+            {
+                Trajectory.Result hit;
+                if (!Trajectory.Predict(r, orbit, out hit)) return;
+
+                vars["TimeToImpact"] = hit.Seconds;
+                vars["ImpactDistance"] = hit.Distance;
+                vars["ImpactLongitude"] = NormalizeAngle(hit.AngleDeg);
+
+                // 选着目标时顺手给出落点到目标多远，定点降落要用
+                SelectableObject target = GetTarget();
+                if (target == null) return;
+                Location tl = target.Location;
+                if (tl.planet == loc.planet) vars["ImpactToTarget"] = (hit.Position - tl.position).magnitude;
+            }
+            catch (Exception) { }
+        }
+
         // 到远/近拱点的时间与直线距离：轨道时间参数没算出来就给大数/0
         private static void FillApsisTimes(Orbit orbit, Location loc, Dictionary<string, double> vars)
         {
@@ -182,27 +208,6 @@ namespace SFSVizzyMod
             double tAp = double.NaN, tPe = double.NaN;
             try { tAp = orbit.GetNextTrueAnomalyPassTime(now, Math.PI); } catch (Exception) { }
             try { tPe = orbit.GetNextTrueAnomalyPassTime(now, 0.0); } catch (Exception) { }
-
-            // 落点预测：只算轨道和地面相交的情况（真空二体，忽略大气阻力）
-            try
-            {
-                double surf = loc.planet.Radius;
-                if (orbit.periapsis < surf && orbit.ecc < 1.0)
-                {
-                    // 半径 = 地表时有两个解，落地走下降段，取负的
-                    double nu = Kepler.GetTrueAnomalyAtRadius(surf, orbit.slr, orbit.ecc);
-                    double tHit = orbit.GetNextTrueAnomalyPassTime(now, -nu);
-                    double dt = TimeOrFallback(tHit - now);
-                    if (dt < 1e8)
-                    {
-                        Location hit = orbit.GetLocation(tHit);
-                        vars["TimeToImpact"] = dt;
-                        vars["ImpactDistance"] = (hit.position - loc.position).magnitude;
-                        vars["ImpactLongitude"] = NormalizeAngle(hit.position.AngleRadians * 180.0 / Math.PI);
-                    }
-                }
-            }
-            catch (Exception) { }
 
             double dAp = TimeOrFallback(tAp - now);
             double dPe = TimeOrFallback(tPe - now);

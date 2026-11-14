@@ -89,7 +89,7 @@ Programs are saved to `Mods/SFSVizzyMod/program.json` and loaded back next time.
 | Rocket | `Mass` `TWR` `MaxTWR` `Fuel` `FuelAmount` `FuelCapacity` |
 | Orbit | `Apoapsis` `Periapsis` `Eccentricity` `Escaping` `Radius` `PlanetRadius` |
 | Orbit | `TimeToApoapsis` `TimeToPeriapsis` (s), `DistToApoapsis` `DistToPeriapsis` (m) |
-| Impact | `TimeToImpact` (s), `ImpactDistance` (m), `ImpactLongitude` (deg) — orbit math only, no drag |
+| Impact | `TimeToImpact` (s), `ImpactDistance` (m), `ImpactLongitude` (deg), `ImpactToTarget` (m, needs a map target) — the coast is solved, the atmosphere is integrated with the game's own drag model |
 | World | `WorldTime` `TimewarpIndex` `RocketCount` |
 | Environment | `Gravity` `AirDensity` `DynamicPressure` `AtmosphereTop` |
 | Target | `TargetDistance` `TargetBearing` `TargetLongitude` `HasTarget` |
@@ -119,6 +119,7 @@ Everything in `examples/` can be pasted straight into the CODE view:
 - On the pad there is no orbit yet, so `Apoapsis` falls back to the current altitude
 - `hold` and `burn` wait for time warp to end; burning while warping does nothing
 - On an escape trajectory `TimeToApoapsis` reads 1e9, not 0, so `wait until TimeToApoapsis < 30` never fires by accident
+- The impact prediction ignores parachutes, so opening one makes the real touchdown sooner than predicted
 - In the Chinese build the UI is Chinese, but code keywords and variables stay English
 - When picking parts by index, press **H** in game to see the numbers
 
@@ -211,7 +212,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | 火箭 | `Mass` `TWR` `MaxTWR` `Fuel` `FuelAmount` `FuelCapacity` |
 | 轨道 | `Apoapsis` `Periapsis` `Eccentricity` `Escaping` `Radius` `PlanetRadius` |
 | 轨道 | `TimeToApoapsis` `TimeToPeriapsis`（秒） `DistToApoapsis` `DistToPeriapsis`（米） |
-| 落点 | `TimeToImpact`（秒） `ImpactDistance`（米） `ImpactLongitude`（度） 只按轨道算 不含大气阻力 |
+| 落点 | `TimeToImpact`（秒） `ImpactDistance`（米） `ImpactLongitude`（度） `ImpactToTarget`（米 要先选目标） 轨道段解析 大气段按游戏自己的阻力积分 |
 | 世界 | `WorldTime` `TimewarpIndex` `RocketCount` |
 | 环境 | `Gravity` `AirDensity` `DynamicPressure` `AtmosphereTop` |
 | 目标 | `TargetDistance` `TargetBearing` `TargetLongitude` `HasTarget` |
@@ -241,5 +242,6 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 - 发射台上还没入轨 `Apoapsis` 会按当前高度算 别指望它有值
 - `hold` 和 `burn` 会先等时间加速退出 加速状态下点火是无效的
 - 逃离轨道没有远拱点 `TimeToApoapsis` 给的是 1e9 不是 0 免得 `wait until TimeToApoapsis < 30` 一开局就触发
+- 落点预测不算降落伞 开伞之后实际触地会比预测的早
 - 中文版的界面是中文 但代码关键字和变量名还是英文
 - 选部件用编号时 先按 **H** 看看各部件是几号

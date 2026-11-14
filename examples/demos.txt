@@ -57,6 +57,16 @@ demo8_error_demo.txt        error reporting
          the offending call block gets a red outline and scrolls into view;
          the final log line never prints
 
+demo9_deorbit_target.txt    deorbit onto a map target
+  Where: already in orbit, a map target selected (another ship on the ground)
+  Shows: retro burn until the periapsis is in the atmosphere -> read the
+         predicted touchdown -> braking burn while re-aiming retrograde ->
+         chute for the last stretch
+  Watch: TimeToImpact counts down from a drag simulation (not the vacuum
+         one), ImpactToTarget tells you how far the touchdown is from the
+         target; on a bare planet the countdown is longer than the real one
+  Note: it waits forever if the prediction says you will not come down
+
 --------------------------------------------------------------------
 mechjeb.txt   multi-mode autopilot (rewritten with the new blocks)
   Change mode in on start to pick a function:
@@ -73,8 +83,10 @@ mechjeb.txt   multi-mode autopilot (rewritten with the new blocks)
     - circularize is a single block instead of a hand written loop
     - landing uses four hold vspeed stages instead of hand tuned throttle
     - legs, parachute and target navigation are new
-    - fixed the old mode 3 bug: expressions have no and operator, so that
-      while line never parsed; it is now while + if + break
+    - mode 2 burns at the apoapsis and mode 3 at the opposite apsis, timed
+      by TimeToApoapsis / TimeToPeriapsis instead of guessing
+    - mode 3 is one line again: while tries < maxTries and abs(...) > tol
+      (expressions do support and / or now)
 
 landing.txt   hand written proportional landing (no hold block)
   If you want to understand what the PID is actually doing, this one
