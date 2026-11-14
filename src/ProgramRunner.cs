@@ -27,6 +27,12 @@ namespace SFSVizzyMod
         private readonly Dictionary<string, double> vars = new Dictionary<string, double>();
         private bool hadRocket;
 
+        // 正在执行的那条协程，Fail 靠它判断是不是"这条线的火箭已经没了"
+        private RunContext currentCtx;
+
+        // 程序选过的火箭（含玩家那枚），crash 事件靠它决定要不要触发
+        private readonly HashSet<Rocket> ownedRockets = new HashSet<Rocket>();
+
         private static readonly Regex Placeholder = new Regex("\\{([^{}]+)\\}", RegexOptions.Compiled);
         private int stageIdentifier;
 
@@ -38,16 +44,39 @@ namespace SFSVizzyMod
         private readonly Dictionary<string, FunctionDef> functions = new Dictionary<string, FunctionDef>();
         private int callDepth;
         private int crashSerial;
-        private float wheelDrive;
-        private float wheelDriveUntil;
-        private Vector2 rcsDrive;
-        private float rcsUntil;
+        // 轮子 / RCS 推动按火箭分开记，多船同时操作时不会互相盖掉
+        private sealed class DriveState
+        {
+            public Rocket rocket;
+            public float wheel;
+            public float wheelUntil;
+            public Vector2 rcs;
+            public float rcsUntil;
+        }
+
+        private readonly List<DriveState> drives = new List<DriveState>();
+
+        private DriveState DriveFor(Rocket r)
+        {
+            for (int i = 0; i < drives.Count; i++)
+                if (drives[i].rocket == r) return drives[i];
+            DriveState d = new DriveState { rocket = r };
+            drives.Add(d);
+            return d;
+        }
 
         // 每个 ON START / 触发器各自一份，break 不会串到别的并行脚本。
         private sealed class RunContext
         {
             public bool breakFlag;
             public bool continueFlag;
+
+            // 多火箭：这条协程自己控制哪枚。selector 为空就跟着玩家那枚走
+            public string selector;
+            public Rocket rocket;
+            public bool everResolved;   // 曾经成功解析过，之后再没了就是真没了
+            public bool dead;           // 选中的火箭没了，只结束这条协程
+            public readonly Dictionary<string, double> vars = new Dictionary<string, double>();
         }
 
         private sealed class EventState
@@ -106,7 +135,7 @@ namespace SFSVizzyMod
                 {
                     Trigger t = data.triggers[i];
                     if (t == null) continue;
-                    double threshold = Eval(t.value);
+                    double threshold = Eval(null, t.value);
                     if (!IsRunning) return;
                     triggerStates.Add(new TriggerState { cfg = t, threshold = threshold });
                 }
@@ -183,6 +212,8 @@ namespace SFSVizzyMod
             callDepth = 0;
             eventStates.Clear();
             pendingLaunches = 0;
+            drives.Clear();
+            ownedRockets.Clear();
             ReleaseControls();
             if (wasRunning && !string.IsNullOrEmpty(reason))
                 Print("STOPPED: " + reason);
@@ -241,6 +272,8 @@ namespace SFSVizzyMod
 
         private void Fail(string msg)
         {
+            // 这条线的火箭已经没了，报错没意义，让它静静结束
+            if (currentCtx != null && currentCtx.dead) return;
             Print("FAILED: " + msg);
             if (Bridge.main != null) Bridge.main.SendError(msg, currentBlock);
             if (MsgDrawer.main != null) MsgDrawer.main.Log("SFS Vizzy: " + msg, true);
@@ -412,7 +445,7 @@ namespace SFSVizzyMod
 
             while (IsRunning)
             {
-                CheckRocket();
+                CheckRocket(null);
                 if (!IsRunning) yield break;
 
                 double alt = ReadAltitude(t.mode);
@@ -518,7 +551,7 @@ namespace SFSVizzyMod
                 // break 只中止当前容器，由最近的 while/repeat 消费
                 if (ctx.breakFlag) yield break;
 
-                CheckRocket();
+                CheckRocket(ctx);
                 if (!IsRunning) yield break;
 
                 // 每条语句至少跨一帧 —— 防止空 while 死循环冻住游戏
@@ -534,13 +567,16 @@ namespace SFSVizzyMod
             if (!IsRunning) yield break;
 
             currentBlock = b;
+            currentCtx = ctx;
+            // 这条线的火箭没了（炸了 / 已回收），只结束这条协程
+            if (ctx != null && ctx.dead) yield break;
             if (b == null || string.IsNullOrEmpty(b.kind)) yield break;
 
             switch (b.kind)
             {
                 case Kinds.Wait:
                 {
-                    double secs = Eval(b.a);
+                    double secs = Eval(ctx, b.a);
                     if (!IsRunning) yield break;
                     if (secs > 0.0)
                     {
@@ -556,7 +592,7 @@ namespace SFSVizzyMod
 
                 case Kinds.WaitUntil:
                 {
-                    while (!Cond(b))
+                    while (!Cond(ctx, b))
                     {
                         if (!IsRunning) yield break;
                         yield return null;
@@ -566,9 +602,9 @@ namespace SFSVizzyMod
 
                 case Kinds.SetThrottle:
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) { Fail("set throttle: no rocket"); yield break; }
-                    double v = Eval(b.a);
+                    double v = Eval(ctx, b.a);
                     if (!IsRunning) yield break;
                     r.throttle.throttlePercent.Value = Mathf.Clamp01((float)v);
                     if (v > 0.001) r.throttle.throttleOn.Value = true;
@@ -577,7 +613,7 @@ namespace SFSVizzyMod
 
                 case Kinds.ThrottleOn:
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) { Fail("throttle on: no rocket"); yield break; }
                     r.throttle.throttleOn.Value = true;
                     break;
@@ -585,7 +621,7 @@ namespace SFSVizzyMod
 
                 case Kinds.ThrottleOff:
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) { Fail("throttle off: no rocket"); yield break; }
                     r.throttle.throttleOn.Value = false;
                     break;
@@ -593,7 +629,7 @@ namespace SFSVizzyMod
 
                 case Kinds.RcsOn:
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) { Fail("rcs on: no rocket"); yield break; }
                     r.arrowkeys.rcs.Value = true;
                     break;
@@ -601,7 +637,7 @@ namespace SFSVizzyMod
 
                 case Kinds.RcsOff:
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) { Fail("rcs off: no rocket"); yield break; }
                     r.arrowkeys.rcs.Value = false;
                     break;
@@ -609,12 +645,12 @@ namespace SFSVizzyMod
 
                 case Kinds.Turn:
                 {
-                    Rocket r1 = WorldVars.GetPlayerRocket();
+                    Rocket r1 = Rb(ctx);
                     if (r1 == null) { Fail("turn: no rocket"); yield break; }
 
-                    double angle = Eval(b.a);
+                    double angle = Eval(ctx, b.a);
                     if (!IsRunning) yield break;
-                    double duration = OptionalDuration(b);
+                    double duration = OptionalDuration(ctx, b);
                     if (!IsRunning) yield break;
 
                     // 基准 = 90° 垂直上升姿态（当地天顶的推力方向），而不是当前机头。left  = 天顶 + 角度（逆时针，屏幕上向左）；right = 天顶 - 角度（顺时针，屏幕上向右）；缺省 rel = 相对当前机头（旧存档兼容）
@@ -636,7 +672,7 @@ namespace SFSVizzyMod
 
                 case Kinds.TurnTo:
                 {
-                    Rocket r2 = WorldVars.GetPlayerRocket();
+                    Rocket r2 = Rb(ctx);
                     if (r2 == null) { Fail("turn to: no rocket"); yield break; }
 
                     Location loc = r2.location.Value;
@@ -654,14 +690,14 @@ namespace SFSVizzyMod
                             break;
                         default:
                         {
-                            double rel = Eval(b.a);
+                            double rel = Eval(ctx, b.a);
                             if (!IsRunning) yield break;
                             // deg 与 turn 同一基准：0 = 天顶，正值 = 向左
                             worldTarget = WorldVars.ZenithAngle(loc) + rel;
                             break;
                         }
                     }
-                    double duration = OptionalDuration(b);
+                    double duration = OptionalDuration(ctx, b);
                     if (!IsRunning) yield break;
                     yield return TurnTo(r2, worldTarget, duration);
                     break;
@@ -669,7 +705,7 @@ namespace SFSVizzyMod
 
                 case Kinds.Stage:
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) { Fail("stage: no rocket"); yield break; }
                     int ordinal = 1;
                     if (!string.IsNullOrEmpty(b.a)) int.TryParse(b.a.Trim(), out ordinal);
@@ -679,42 +715,46 @@ namespace SFSVizzyMod
 
                 case Kinds.Engine:
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) { Fail("engine: no rocket"); yield break; }
                     EngineBlock(r, b);
                     break;
                 }
 
                 case Kinds.Parachute:
-                    yield return ParachuteBlock(b);
+                    yield return ParachuteBlock(ctx, b);
                     break;
 
                 case Kinds.Deploy:
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) { Fail("deploy: no rocket"); yield break; }
                     DeployBlock(r, b);
                     break;
                 }
 
                 case Kinds.Wheel:
-                    yield return WheelBlock(b);
+                    yield return WheelBlock(ctx, b);
                     break;
 
                 case Kinds.Hold:
-                    yield return HoldBlock(b);
+                    yield return HoldBlock(ctx, b);
                     break;
 
                 case Kinds.Warp:
-                    WarpBlock(b);
+                    WarpBlock(ctx, b);
                     break;
 
                 case Kinds.Target:
-                    TargetBlock(b);
+                    TargetBlock(ctx, b);
+                    break;
+
+                case Kinds.Select:
+                    SelectBlock(ctx, b);
                     break;
 
                 case Kinds.HoldHeading:
-                    yield return HoldHeadingBlock(b);
+                    yield return HoldHeadingBlock(ctx, b);
                     break;
 
                 case Kinds.Call:
@@ -722,25 +762,25 @@ namespace SFSVizzyMod
                     break;
 
                 case Kinds.RcsMove:
-                    yield return RcsMoveBlock(b);
+                    yield return RcsMoveBlock(ctx, b);
                     break;
 
                 case Kinds.Burn:
-                    yield return BurnBlock(b);
+                    yield return BurnBlock(ctx, b);
                     break;
 
                 case Kinds.Circularize:
-                    yield return CircularizeBlock(b);
+                    yield return CircularizeBlock(ctx, b);
                     break;
 
                 case Kinds.Match:
-                    yield return MatchBlock(b);
+                    yield return MatchBlock(ctx, b);
                     break;
 
                 case Kinds.Log:
                 {
                     string msg = b.a ?? "";
-                    string rendered = Interpolate(msg);
+                    string rendered = Interpolate(ctx, msg);
                     if (!IsRunning) yield break;
                     Print("LOG: " + rendered);
                     if (MsgDrawer.main != null) MsgDrawer.main.Log(rendered);
@@ -748,14 +788,14 @@ namespace SFSVizzyMod
                 }
 
                 case Kinds.Dialog:
-                    yield return DialogBlock(b);
+                    yield return DialogBlock(ctx, b);
                     break;
 
                 case Kinds.SetVar:
                 {
                     string name = (b.a ?? "").Trim();
                     if (name.Length == 0) { Fail("set variable: empty name"); yield break; }
-                    double v = Eval(b.b);
+                    double v = Eval(ctx, b.b);
                     if (!IsRunning) yield break;
                     userVars[name] = v;
                     break;
@@ -763,7 +803,7 @@ namespace SFSVizzyMod
 
                 case Kinds.If:
                 {
-                    bool c = Cond(b);
+                    bool c = Cond(ctx, b);
                     if (!IsRunning) yield break;
                     yield return RunList(c ? b.then : b.els, ctx);
                     break;
@@ -772,7 +812,7 @@ namespace SFSVizzyMod
                 case Kinds.While:
                 {
                     int guard = 0;
-                    while (Cond(b))
+                    while (Cond(ctx, b))
                     {
                         if (!IsRunning) yield break;
                         yield return RunList(b.body, ctx);
@@ -787,7 +827,7 @@ namespace SFSVizzyMod
 
                 case Kinds.Repeat:
                 {
-                    double count = Eval(b.a);
+                    double count = Eval(ctx, b.a);
                     if (!IsRunning) yield break;
                     int n = (int)Math.Min(Math.Floor(count), 1000000.0);
                     for (int i = 0; i < n; i++)
@@ -843,10 +883,10 @@ namespace SFSVizzyMod
         // ---------------- 转向控制器 ----------------
 
         // 可选时长：b 为空 = 瞬时到位；否则在 b 秒内匀速转过去。
-        private double OptionalDuration(Block b)
+        private double OptionalDuration(RunContext ctx, Block b)
         {
             if (b == null || string.IsNullOrWhiteSpace(b.b)) return 0.0;
-            double d = Eval(b.b);
+            double d = Eval(ctx, b.b);
             if (!IsRunning) return 0.0;
             return d > 0.0 ? d : 0.0;
         }
@@ -1035,9 +1075,9 @@ namespace SFSVizzyMod
             Print("ENGINE: " + (b.a ?? "all") + " -> " + (on ? "on" : "off") + " (" + idx.Length + ")");
         }
 
-        private IEnumerator ParachuteBlock(Block b)
+        private IEnumerator ParachuteBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("parachute: no rocket"); yield break; }
 
             ParachuteModule[] chutes = r.partHolder.GetModules<ParachuteModule>();
@@ -1068,14 +1108,14 @@ namespace SFSVizzyMod
 
         private double SpeedVar() { double v; return vars.TryGetValue("Speed", out v) ? v : 0.0; }
 
-        private IEnumerator BurnBlock(Block b)
+        private IEnumerator BurnBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("burn: no rocket"); yield break; }
             yield return WaitRealtime();
             if (!IsRunning) yield break;
 
-            double dv = Eval(string.IsNullOrEmpty(b.a) ? "0" : b.a);
+            double dv = Eval(ctx, string.IsNullOrEmpty(b.a) ? "0" : b.a);
             if (!IsRunning) yield break;
             if (dv <= 0.0) { Print("BURN: dv <= 0, skipped"); yield break; }
 
@@ -1097,7 +1137,7 @@ namespace SFSVizzyMod
 
             while (IsRunning && Time.time < end)
             {
-                RefreshVars();
+                RefreshVars(ctx);
                 double sp = SpeedVar();
                 if (!retro && sp >= targetSpeed) break;
                 if (retro && sp <= targetSpeed) break;
@@ -1108,19 +1148,19 @@ namespace SFSVizzyMod
             Print("BURN: " + (retro ? "retro " : "pro ") + dv.ToString("0.#") + " m/s done");
         }
 
-        private IEnumerator CircularizeBlock(Block b)
+        private IEnumerator CircularizeBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("circularize: no rocket"); yield break; }
             yield return WaitRealtime();
             if (!IsRunning) yield break;
 
-            double tol = Eval(string.IsNullOrEmpty(b.a) ? "3000" : b.a);
+            double tol = Eval(ctx, string.IsNullOrEmpty(b.a) ? "3000" : b.a);
             if (!IsRunning) yield break;
             if (tol <= 0.0) tol = 3000.0;
 
             // 没入轨就圆化等于原地满油门烧到 2 km/s，先拦下来
-            RefreshVars();
+            RefreshVars(ctx);
             double apoNow = vars.ContainsKey("Apoapsis") ? vars["Apoapsis"] : 0.0;
             if (apoNow < 2000.0)
             {
@@ -1131,7 +1171,7 @@ namespace SFSVizzyMod
             // 圆轨道速度 v = sqrt(mu / r)，mu = g * R^2；按当前速度决定顺/逆行
             for (int pass = 0; pass < 4 && IsRunning; pass++)
             {
-                RefreshVars();
+                RefreshVars(ctx);
                 double radius = vars.ContainsKey("Radius") ? vars["Radius"] : 0.0;
                 double planetR = vars.ContainsKey("PlanetRadius") ? vars["PlanetRadius"] : 0.0;
                 double g = vars.ContainsKey("Gravity") ? vars["Gravity"] : 0.0;
@@ -1158,7 +1198,7 @@ namespace SFSVizzyMod
 
                 while (IsRunning && Time.time < end)
                 {
-                    RefreshVars();
+                    RefreshVars(ctx);
                     double sp = SpeedVar();
                     if ((prograde && sp >= vCirc) || (!prograde && sp <= vCirc)) break;
                     yield return null;
@@ -1169,9 +1209,9 @@ namespace SFSVizzyMod
             }
         }
 
-        private IEnumerator MatchBlock(Block b)
+        private IEnumerator MatchBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("match: no rocket"); yield break; }
             yield return WaitRealtime();
             if (!IsRunning) yield break;
@@ -1179,7 +1219,7 @@ namespace SFSVizzyMod
             SelectableObject target = WorldVars.GetTarget();
             if (target == null) { Fail("match: no target selected in map"); yield break; }
 
-            double tol = Eval(string.IsNullOrEmpty(b.a) ? "1" : b.a);
+            double tol = Eval(ctx, string.IsNullOrEmpty(b.a) ? "1" : b.a);
             if (!IsRunning) yield break;
             if (tol <= 0.0) tol = 1.0;
 
@@ -1203,7 +1243,7 @@ namespace SFSVizzyMod
 
             while (IsRunning && Time.time < end)
             {
-                RefreshVars();
+                RefreshVars(ctx);
                 loc = r.location.Value;
                 Double2 relNow = tl.velocity - loc.velocity;
                 if (relNow.magnitude <= tol) break;
@@ -1217,31 +1257,39 @@ namespace SFSVizzyMod
         private void LateUpdate()
         {
             if (!IsRunning) return;
-            Rocket r = WorldVars.GetPlayerRocket();
-            if (r == null) return;
+            float now = Time.time;
 
-            if (Time.time < wheelDriveUntil) r.arrowkeys.turnAxis.Value = wheelDrive;
-
-            if (Time.time < rcsUntil)
+            for (int i = drives.Count - 1; i >= 0; i--)
             {
-                r.arrowkeys.horizontalAxis.Value = rcsDrive;
-                r.arrowkeys.verticalAxis.Value = Vector2.zero;
+                DriveState d = drives[i];
+                if (d == null || d.rocket == null) { drives.RemoveAt(i); continue; }
+                try
+                {
+                    if (now < d.wheelUntil) d.rocket.arrowkeys.turnAxis.Value = d.wheel;
+                    if (now < d.rcsUntil)
+                    {
+                        d.rocket.arrowkeys.horizontalAxis.Value = d.rcs;
+                        d.rocket.arrowkeys.verticalAxis.Value = Vector2.zero;
+                    }
+                }
+                catch (Exception) { }
+                if (now >= d.wheelUntil && now >= d.rcsUntil) drives.RemoveAt(i);
             }
         }
 
         public void NotifyCrash(Rocket rocket, string reason)
         {
-            // 只认玩家这艘船；别的残骸解体不触发
+            // 只认玩家这艘和程序自己选过的船；别人的残骸解体不触发
             Rocket current = WorldVars.GetPlayerRocket();
-            if (rocket != null && current != null && rocket != current) return;
+            if (rocket != null && rocket != current && !ownedRockets.Contains(rocket)) return;
 
             crashSerial++;
             Print("EVENT: crash (" + reason + ")");
         }
 
-        private IEnumerator RcsMoveBlock(Block b)
+        private IEnumerator RcsMoveBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("rcs: no rocket"); yield break; }
 
             float duration = 2f;
@@ -1264,14 +1312,15 @@ namespace SFSVizzyMod
                 + ") rot=" + (r.rb2d != null ? r.rb2d.rotation.ToString("0.#") : "?"));
 
             r.arrowkeys.rcs.Value = true;
-            rcsDrive = dir;
-            rcsUntil = Time.time + duration;
+            DriveState drive = DriveFor(r);
+            drive.rcs = dir;
+            drive.rcsUntil = Time.time + duration;
 
             float end = Time.time + duration;
             while (IsRunning && Time.time < end) yield return null;
 
-            rcsUntil = 0f;
-            rcsDrive = Vector2.zero;
+            drive.rcsUntil = 0f;
+            drive.rcs = Vector2.zero;
             r.arrowkeys.horizontalAxis.Value = Vector2.zero;
             r.arrowkeys.verticalAxis.Value = Vector2.zero;
             r.arrowkeys.rcs.Value = false;
@@ -1300,7 +1349,7 @@ namespace SFSVizzyMod
         }
 
         // 把方向名换算成世界角；算不出来返回 NaN
-        private double WorldTargetFor(Rocket r, string dir, string degExpr)
+        private double WorldTargetFor(RunContext ctx, Rocket r, string dir, string degExpr)
         {
             Location loc = r.location.Value;
             switch (string.IsNullOrEmpty(dir) ? "prograde" : dir)
@@ -1313,7 +1362,7 @@ namespace SFSVizzyMod
                     return WorldVars.TargetWorldAngle(loc);
                 case "deg":
                 {
-                    double rel = Eval(string.IsNullOrEmpty(degExpr) ? "0" : degExpr);
+                    double rel = Eval(ctx, string.IsNullOrEmpty(degExpr) ? "0" : degExpr);
                     if (!IsRunning) return double.NaN;
                     return WorldVars.ZenithAngle(loc) + rel;
                 }
@@ -1322,9 +1371,9 @@ namespace SFSVizzyMod
         }
 
         // 持续保持某个朝向：每帧重算目标角，因为它本身在动（顺行方向会随轨道转）
-        private IEnumerator HoldHeadingBlock(Block b)
+        private IEnumerator HoldHeadingBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("hold heading: no rocket"); yield break; }
             yield return WaitRealtime();
             if (!IsRunning) yield break;
@@ -1335,7 +1384,7 @@ namespace SFSVizzyMod
                 yield break;
             }
 
-            double duration = OptionalDuration(b);
+            double duration = OptionalDuration(ctx, b);
             if (!IsRunning) yield break;
             float end = duration > 0.05 ? Time.time + (float)duration : float.MaxValue;
             Print("HOLD: heading " + (b.dir ?? "prograde")
@@ -1348,7 +1397,7 @@ namespace SFSVizzyMod
 
             while (IsRunning && Time.time < end)
             {
-                double world = WorldTargetFor(r, b.dir, b.a);
+                double world = WorldTargetFor(ctx, r, b.dir, b.a);
                 if (double.IsNaN(world)) { Fail("hold heading: cannot resolve direction"); yield break; }
 
                 double bodyTarget = WorldVars.NormalizeAngle(world - offset);
@@ -1366,16 +1415,68 @@ namespace SFSVizzyMod
             Print("HOLD: heading done");
         }
 
-        private void TargetBlock(Block b)
+        // 切换这条协程控制的火箭：后面的积木、表达式都跟着它走，别的协程不受影响
+        private void SelectBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            string mode = string.IsNullOrEmpty(b.dir) ? "player" : b.dir.ToLowerInvariant();
+
+            ctx.rocket = null;
+            ctx.everResolved = false;
+            ctx.dead = false;
+
+            if (mode == "player")
+            {
+                ctx.selector = null;
+                Print("SELECT: player rocket");
+                return;
+            }
+
+            if (mode == "index")
+            {
+                double v = Eval(ctx, string.IsNullOrEmpty(b.a) ? "1" : b.a);
+                if (!IsRunning) return;
+                ctx.selector = "#" + (int)Math.Round(v);
+            }
+            else if (mode == "name")
+            {
+                string name = (b.b ?? "").Trim();
+                if (name.Length == 0) { Fail("select rocket: name is empty"); return; }
+                ctx.selector = "name:" + name;
+            }
+            else
+            {
+                ctx.selector = "nearest";
+            }
+
+            Rocket r = WorldVars.ResolveRocket(ctx.selector);
+            if (r == null)
+            {
+                string want = ctx.selector;
+                ctx.selector = null;
+                Fail("select rocket: " + want + " not found");
+                return;
+            }
+
+            ctx.rocket = r;
+            ctx.everResolved = true;
+            ownedRockets.Add(r);
+
+            string extra = "";
+            try { extra = " alt " + r.location.Value.Height.ToString("0") + " m"; }
+            catch (Exception) { }
+            Print("SELECT: " + WorldVars.RocketLabel(r) + extra);
+        }
+
+        private void TargetBlock(RunContext ctx, Block b)
+        {
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("target: no rocket"); return; }
 
             string mode = string.IsNullOrEmpty(b.dir) ? "nearest" : b.dir.ToLowerInvariant();
             int idx = 1;
             if (mode == "rocket")
             {
-                double v = Eval(string.IsNullOrEmpty(b.a) ? "1" : b.a);
+                double v = Eval(ctx, string.IsNullOrEmpty(b.a) ? "1" : b.a);
                 if (!IsRunning) return;
                 idx = (int)Math.Round(v);
             }
@@ -1385,7 +1486,7 @@ namespace SFSVizzyMod
             else Fail("target " + mode + ": " + info);
         }
 
-        private void WarpBlock(Block b)
+        private void WarpBlock(RunContext ctx, Block b)
         {
             if (WorldTime.main == null) { Fail("warp: no world time"); return; }
 
@@ -1426,15 +1527,15 @@ namespace SFSVizzyMod
             }
         }
 
-        private IEnumerator HoldBlock(Block b)
+        private IEnumerator HoldBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("hold: no rocket"); yield break; }
             yield return WaitRealtime();
             if (!IsRunning) yield break;
 
             bool altitudeMode = string.Equals(b.dir, "altitude", StringComparison.OrdinalIgnoreCase);
-            double target = Eval(string.IsNullOrEmpty(b.a) ? "0" : b.a);
+            double target = Eval(ctx, string.IsNullOrEmpty(b.a) ? "0" : b.a);
             if (!IsRunning) yield break;
 
             float duration = 10f;
@@ -1450,7 +1551,7 @@ namespace SFSVizzyMod
 
             while (IsRunning && Time.time < end)
             {
-                RefreshVars();
+                RefreshVars(ctx);
                 double dt = Time.deltaTime;
                 if (dt <= 0.0) { yield return null; continue; }
 
@@ -1505,9 +1606,9 @@ namespace SFSVizzyMod
             Print("HOLD: " + (altitudeMode ? "altitude " : "vspeed ") + target.ToString("0.#") + " done");
         }
 
-        private IEnumerator WheelBlock(Block b)
+        private IEnumerator WheelBlock(RunContext ctx, Block b)
         {
-            Rocket r = WorldVars.GetPlayerRocket();
+            Rocket r = Rb(ctx);
             if (r == null) { Fail("wheel: no rocket"); yield break; }
 
             WheelModule[] wheels = r.partHolder.GetModules<WheelModule>();
@@ -1523,7 +1624,7 @@ namespace SFSVizzyMod
                 yield break;
             }
 
-            double v = Eval(string.IsNullOrEmpty(b.b) ? "0" : b.b);
+            double v = Eval(ctx, string.IsNullOrEmpty(b.b) ? "0" : b.b);
             if (!IsRunning) yield break;
 
             // power/steer 都是驱动：Q/E 轴每帧被输入覆盖，所以用 LateUpdate 抢在物理步之前写
@@ -1532,14 +1633,15 @@ namespace SFSVizzyMod
             if (duration <= 0f) duration = 2f;
 
             for (int i = 0; i < idx.Length; i++) wheels[idx[i]].on.Value = true;
-            wheelDrive = (float)v;
-            wheelDriveUntil = Time.time + duration;
+            DriveState drive = DriveFor(r);
+            drive.wheel = (float)v;
+            drive.wheelUntil = Time.time + duration;
 
             float end = Time.time + duration;
             while (IsRunning && Time.time < end) yield return null;
 
-            wheelDrive = 0f;
-            wheelDriveUntil = 0f;
+            drive.wheel = 0f;
+            drive.wheelUntil = 0f;
             if (r != null) r.arrowkeys.turnAxis.Value = 0f;
             Print("WHEEL: drive " + v.ToString("0.##") + " for " + duration.ToString("0.#") + "s (" + idx.Length + ")");
         }
@@ -1568,21 +1670,21 @@ namespace SFSVizzyMod
 
         // ---------------- 条件 / 表达式 ----------------
 
-        private bool Cond(Block b)
+        private bool Cond(RunContext ctx, Block b)
         {
             // 整条条件当成一个表达式算，这样 and / or / not 才能跨比较生效
             string expr;
             if (string.IsNullOrWhiteSpace(b.op)) expr = b.a ?? "";
             else expr = (b.a ?? "") + " " + b.op + " " + (b.b ?? "");
 
-            double v = Eval(expr);
+            double v = Eval(ctx, expr);
             if (!IsRunning) return false;
             return v != 0.0;
         }
 
         // log 文本里的 {表达式} 替换成数值；{planet} 替换成当前天体名。未知变量按求值错误处理。
         // 弹窗/数字输入：等用户点 OK/Cancel 或超时
-        private IEnumerator DialogBlock(Block b)
+        private IEnumerator DialogBlock(RunContext ctx, Block b)
         {
             if (DialogUI.main == null)
             {
@@ -1590,14 +1692,14 @@ namespace SFSVizzyMod
                 yield break;
             }
 
-            string title = Interpolate(b.title ?? "");
-            string body = Interpolate(b.a ?? "");
+            string title = Interpolate(ctx, b.title ?? "");
+            string body = Interpolate(ctx, b.a ?? "");
             bool numeric = string.Equals(b.dir, "number", StringComparison.OrdinalIgnoreCase);
 
             float timeout = 0f;
             if (!string.IsNullOrEmpty(b.b))
             {
-                double t = Eval(b.b);
+                double t = Eval(ctx, b.b);
                 if (!IsRunning) yield break;
                 if (t > 0.0) timeout = (float)t;
             }
@@ -1616,7 +1718,7 @@ namespace SFSVizzyMod
             }
         }
 
-        private string Interpolate(string text)
+        private string Interpolate(RunContext ctx, string text)
         {
             if (string.IsNullOrEmpty(text) || text.IndexOf('{') < 0) return text;
             return Placeholder.Replace(text, match =>
@@ -1624,24 +1726,24 @@ namespace SFSVizzyMod
                 string expr = match.Groups[1].Value.Trim();
                 if (expr.Equals("planet", StringComparison.OrdinalIgnoreCase))
                 {
-                    Rocket r = WorldVars.GetPlayerRocket();
+                    Rocket r = Rb(ctx);
                     if (r == null) return "?";
                     try { return (string)r.location.planet.Value.DisplayName; }
                     catch (Exception) { return "?"; }
                 }
-                double v = Eval(expr);
+                double v = Eval(ctx, expr);
                 if (!IsRunning) return match.Value;
                 return v.ToString("0.###", CultureInfo.InvariantCulture);
             });
         }
 
         // 求值。出错不抛异常：打印错误并停机（协程里不能跨 yield try/catch）。
-        private double Eval(string expr)
+        private double Eval(RunContext ctx, string expr)
         {
             try
             {
-                RefreshVars();
-                double v = Expressions.Eval(expr, vars);
+                RefreshVars(ctx);
+                double v = Expressions.Eval(expr, CtxxVars(ctx));
                 if (!double.IsFinite(v))
                 {
                     Fail("expression '" + expr + "' is not finite");
@@ -1656,16 +1758,56 @@ namespace SFSVizzyMod
             }
         }
 
-        private void RefreshVars()
+        // 写世界变量用的字典：每条协程一份，互不覆盖
+        private Dictionary<string, double> CtxxVars(RunContext ctx)
         {
-            vars.Clear();
-            WorldVars.Fill(WorldVars.GetPlayerRocket(), vars);
-            foreach (KeyValuePair<string, double> kv in userVars)
-                vars[kv.Key] = kv.Value;
+            return ctx != null ? ctx.vars : vars;
         }
 
-        private void CheckRocket()
+        // 这条协程该控制哪枚火箭。没选过就跟着玩家走
+        private Rocket Rb(RunContext ctx)
         {
+            if (ctx == null || ctx.selector == null) return WorldVars.GetPlayerRocket();
+            if (ctx.dead) return null;
+            if (ctx.rocket != null)
+            {
+                ownedRockets.Add(ctx.rocket);
+                return ctx.rocket;
+            }
+
+            Rocket r = WorldVars.ResolveRocket(ctx.selector);
+            if (r == null)
+            {
+                // 之前解析到过，现在没了 = 被炸掉 / 已回收，这条协程安静收尾
+                if (ctx.everResolved) ctx.dead = true;
+                return null;
+            }
+            ctx.everResolved = true;
+            ctx.rocket = r;
+            ownedRockets.Add(r);
+            return r;
+        }
+
+        private void RefreshVars(RunContext ctx)
+        {
+            Dictionary<string, double> d = CtxxVars(ctx);
+            d.Clear();
+            WorldVars.Fill(Rb(ctx), d);
+            foreach (KeyValuePair<string, double> kv in userVars)
+                d[kv.Key] = kv.Value;
+        }
+
+        private void CheckRocket(RunContext ctx)
+        {
+            // 选了别的火箭就由 Rb 自己管，这里只管玩家这枚
+            if (ctx != null && ctx.selector != null)
+            {
+                Rocket own = Rb(ctx);
+                if (own == null && ctx.dead) { ctx.dead = true; return; }
+                if (own != null) hadRocket = true;
+                return;
+            }
+
             Rocket r = WorldVars.GetPlayerRocket();
             if (r != null)
             {

@@ -1,0 +1,42 @@
+# ===== Demo 10: fly two vessels at once =====
+# How to run: on the pad, press RUN, then stage once (space) so there are two
+# vessels. Each ON START below is its own coroutine with its own rocket, so
+# the two halves really do run at the same time.
+# Needs: both vessels inside physics range, otherwise the far one ignores
+# the throttle (check InPhysics).
+
+on start
+  # ---- coroutine A: keeps flying the player rocket ----
+  log "demo10: A = player rocket, agl={AltitudeAGL}"
+  set throttle to 1
+  wait until Altitude > 3000
+  set throttle to 0.5
+  log "demo10: A at {Altitude} m, {RocketCount} vessel(s) in the world"
+
+  # wait for the staging to happen, then leave the booster behind
+  wait until RocketCount > 1
+  wait 15
+  set throttle to 0
+  log "demo10: A done, agl={AltitudeAGL} speed={Speed}"
+end
+
+on start
+  # ---- coroutine B: takes over the dropped stage ----
+  wait until RocketCount > 1
+  wait 1
+  select rocket #2
+  log "demo10: B joined, alt={Altitude} vs={VerticalSpeed} inphysics={InPhysics}"
+
+  # point retrograde and slow the booster down so it comes down gently
+  turn to retrograde in 2
+  set throttle to 0.5
+  wait until Speed < 60
+  set throttle to 0
+  deploy all
+  log "demo10: B slowed, alt={AltitudeAGL} vs={VerticalSpeed}"
+end
+
+# fires for either vessel, because the program selected #2 as well
+on landed
+  log "demo10: touchdown"
+end

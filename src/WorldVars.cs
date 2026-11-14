@@ -156,6 +156,13 @@ namespace SFSVizzyMod
             vars["Radius"] = loc.Radius;
             vars["PlanetRadius"] = loc.planet != null ? loc.planet.Radius : 0.0;
 
+            // 这枚火箭是不是正在跑物理。选中的船在物理范围外时，点火和转向都不起作用
+            try
+            {
+                vars["InPhysics"] = r.physics != null && r.physics.PhysicsMode ? 1.0 : 0.0;
+            }
+            catch (Exception) { }
+
             // 目标导航：距离/方位/经度，未选目标时为 0
             try
             {
@@ -299,6 +306,76 @@ namespace SFSVizzyMod
                 info = e.Message;
                 return false;
             }
+        }
+
+        // 选择器：#2 / nearest / name:Foo。找不到返回 null
+        public static Rocket ResolveRocket(string selector)
+        {
+            if (string.IsNullOrEmpty(selector)) return GetPlayerRocket();
+
+            List<Rocket> all = null;
+            try { all = GameManager.main != null ? GameManager.main.rockets : null; }
+            catch (Exception) { }
+            if (all == null) return null;
+
+            try
+            {
+                if (selector.StartsWith("#"))
+                {
+                    int idx;
+                    if (!int.TryParse(selector.Substring(1), out idx)) return null;
+                    if (idx < 1 || idx > all.Count) return null;
+                    return all[idx - 1];
+                }
+
+                if (selector.StartsWith("name:"))
+                {
+                    string want = selector.Substring(5);
+                    for (int i = 0; i < all.Count; i++)
+                    {
+                        Rocket r = all[i];
+                        if (r != null && string.Equals(r.rocketName, want, StringComparison.OrdinalIgnoreCase)) return r;
+                    }
+                    return null;
+                }
+
+                if (selector == "nearest")
+                {
+                    // 离玩家最近的那枚，自己不算
+                    Rocket me = GetPlayerRocket();
+                    if (me == null) return null;
+                    Double2 here = me.location.Value.position;
+                    Rocket best = null;
+                    double bestD = double.MaxValue;
+                    for (int i = 0; i < all.Count; i++)
+                    {
+                        Rocket r = all[i];
+                        if (r == null || r == me) continue;
+                        if (r.location.Value.planet != me.location.Value.planet) continue;
+                        double d = (r.location.Value.position - here).magnitude;
+                        if (d < bestD) { bestD = d; best = r; }
+                    }
+                    return best;
+                }
+            }
+            catch (Exception) { }
+            return null;
+        }
+
+        // 给人看的名字：有名字用名字，没名字就用序号
+        public static string RocketLabel(Rocket r)
+        {
+            if (r == null) return "?";
+            string name = r.rocketName;
+            if (!string.IsNullOrEmpty(name)) return name;
+
+            try
+            {
+                List<Rocket> all = GameManager.main != null ? GameManager.main.rockets : null;
+                if (all != null) return "#" + (all.IndexOf(r) + 1);
+            }
+            catch (Exception) { }
+            return "rocket";
         }
 
         public static SelectableObject GetTarget()

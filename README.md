@@ -66,6 +66,7 @@ Programs are saved to `Mods/SFSVizzyMod/program.json` and loaded back next time.
 | Control | `hold altitude 200 10` | PID hold 200 m above ground |
 | Control | `warp 3` | Time warp to step 3. `warp 0` turns it off |
 | Control | `hold heading prograde 10` | Keep a heading while the direction itself moves (SAS style). Also `retrograde` `up` `down` `target` `deg 90` |
+| Control | `select rocket #2` | Hand this coroutine to another vessel: `player` `nearest` `#N` `"name"`. Two `on start` blocks with different selects fly two vessels at once |
 | Control | `target nearest` | Pick the map target from code: `nearest` other ship, `planet`, `rocket 2`, or `clear` |
 | Guidance | `burn dv 50 prograde` | Burn 50 m/s prograde and stop by itself. `retrograde` burns the other way |
 | Logic | `set x = 1 + 2` | Assign. Comparisons return 0/1, and `and` / `or` / `not` work across them. Functions: `min max abs sqrt clamp pow floor ceil round sin cos tan log ln`, constants `pi` `e` |
@@ -90,7 +91,7 @@ Programs are saved to `Mods/SFSVizzyMod/program.json` and loaded back next time.
 | Orbit | `Apoapsis` `Periapsis` `Eccentricity` `Escaping` `Radius` `PlanetRadius` |
 | Orbit | `TimeToApoapsis` `TimeToPeriapsis` (s), `DistToApoapsis` `DistToPeriapsis` (m) |
 | Impact | `TimeToImpact` (s), `ImpactDistance` (m), `ImpactLongitude` (deg), `ImpactToTarget` (m, needs a map target) — the coast is solved, the atmosphere is integrated with the game's own drag model |
-| World | `WorldTime` `TimewarpIndex` `RocketCount` |
+| World | `WorldTime` `TimewarpIndex` `RocketCount` `InPhysics` |
 | Environment | `Gravity` `AirDensity` `DynamicPressure` `AtmosphereTop` |
 | Target | `TargetDistance` `TargetBearing` `TargetLongitude` `HasTarget` |
 
@@ -120,6 +121,8 @@ Everything in `examples/` can be pasted straight into the CODE view:
 - `hold` and `burn` wait for time warp to end; burning while warping does nothing
 - On an escape trajectory `TimeToApoapsis` reads 1e9, not 0, so `wait until TimeToApoapsis < 30` never fires by accident
 - The impact prediction ignores parachutes, so opening one makes the real touchdown sooner than predicted
+- A vessel outside physics range ignores throttle and turning; `InPhysics` tells you which it is
+- `set` variables are shared by every coroutine, so two vessels using `set vs` will fight over it
 - In the Chinese build the UI is Chinese, but code keywords and variables stay English
 - When picking parts by index, press **H** in game to see the numbers
 
@@ -189,6 +192,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | 控制 | `hold altitude 200 10` | PID 保持离地 200 m |
 | 控制 | `warp 3` | 时间加速到第 3 档 `warp 0` 关掉 |
 | 控制 | `hold heading prograde 10` | 持续保持朝向 目标方向自己在动也能跟住 和 SAS 一个意思 也能写 `retrograde` `up` `down` `target` `deg 90` |
+| 控制 | `select rocket #2` | 把这条协程交给另一枚火箭 `player` `nearest` `#N` `"船名"` 两个 `on start` 选不同的船就能同时飞两艘 |
 | 控制 | `target nearest` | 用积木设地图目标：最近的友舰 `planet` 当前星球 `rocket 2` 第 N 近的船 `clear` 清除 |
 | 制导 | `burn dv 50 prograde` | 顺行点火 50 m/s 够了自己停 `retrograde` 是反着烧 |
 | 逻辑 | `set x = 1 + 2` | 赋值 比较返回 0/1 比较之间能接 `and` / `or` / `not` 函数有 `min max abs sqrt clamp pow floor ceil round sin cos tan log ln` 常量 `pi` `e` |
@@ -213,7 +217,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | 轨道 | `Apoapsis` `Periapsis` `Eccentricity` `Escaping` `Radius` `PlanetRadius` |
 | 轨道 | `TimeToApoapsis` `TimeToPeriapsis`（秒） `DistToApoapsis` `DistToPeriapsis`（米） |
 | 落点 | `TimeToImpact`（秒） `ImpactDistance`（米） `ImpactLongitude`（度） `ImpactToTarget`（米 要先选目标） 轨道段解析 大气段按游戏自己的阻力积分 |
-| 世界 | `WorldTime` `TimewarpIndex` `RocketCount` |
+| 世界 | `WorldTime` `TimewarpIndex` `RocketCount` `InPhysics` |
 | 环境 | `Gravity` `AirDensity` `DynamicPressure` `AtmosphereTop` |
 | 目标 | `TargetDistance` `TargetBearing` `TargetLongitude` `HasTarget` |
 
@@ -243,5 +247,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 - `hold` 和 `burn` 会先等时间加速退出 加速状态下点火是无效的
 - 逃离轨道没有远拱点 `TimeToApoapsis` 给的是 1e9 不是 0 免得 `wait until TimeToApoapsis < 30` 一开局就触发
 - 落点预测不算降落伞 开伞之后实际触地会比预测的早
+- 物理范围外的火箭点火和转向都不起作用 `InPhysics` 能看出是哪种
+- `set` 的变量是所有协程共用的 两艘船都用 `set vs` 会互相覆盖
 - 中文版的界面是中文 但代码关键字和变量名还是英文
 - 选部件用编号时 先按 **H** 看看各部件是几号

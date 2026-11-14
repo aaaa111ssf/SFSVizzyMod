@@ -448,6 +448,7 @@ const KIND_COLOR = {
   turn_to: "#a85826",
   turn_target: "#8f5a2a",
   target: "#2f6f6a",
+  select: "#8a5a7a",
   hold_heading: "#3a6fa8",
   stage: "#a8823c",
   engine: "#8a5a2b",
@@ -507,6 +508,7 @@ function newBlock(kind) {
     case "turn_to": b.a = "0"; b.dir = "deg"; b.b = ""; break;
     case "turn_target": b.a = "0"; b.dir = "target"; b.b = ""; break;
     case "target": b.dir = "nearest"; b.a = "1"; break;
+    case "select": b.dir = "player"; b.a = "2"; b.b = "Booster"; break;
     case "hold_heading": b.dir = "prograde"; b.a = "0"; b.b = "10"; break;
     case "dialog": b.title = "Notice"; b.a = "Hello {planet}"; b.dir = "message"; b.var = "answer"; b.b = "0"; break;
     case "repeat": b.a = "5"; break;
@@ -622,6 +624,7 @@ function cleanProgram(p) {
     if (b.kind === "hold") o.dir = b.dir || "vspeed";
     if (b.kind === "burn") o.dir = b.dir || "prograde";
     if (b.kind === "target") o.dir = b.dir || "nearest";
+    if (b.kind === "select") o.dir = b.dir || "player";
     if (b.kind === "hold_heading") o.dir = b.dir || "prograde";
     if (b.kind === "rcs_move") o.dir = b.dir || "up";
     if (b.kind === "dialog") {
@@ -1025,6 +1028,11 @@ function renderBlock(list, index, path, parent) {
       row.appendChild(el("span", "dim", "秒"));
       row.appendChild(field(b, "b", 30, "10"));
       break;
+    case "select":
+      row.appendChild(choiceSelect(b, [["player", "player"], ["nearest", "nearest"], ["index", "#"], ["name", "name"]]));
+      if (b.dir === "index") row.appendChild(field(b, "a", 26, "2"));
+      if (b.dir === "name") row.appendChild(field(b, "b", 110, "Booster"));
+      break;
     case "target":
       row.appendChild(choiceSelect(b, [["nearest", "nearest"], ["planet", "planet"], ["rocket", "rocket"], ["clear", "clear"]]));
       if (b.dir === "rocket") {
@@ -1367,6 +1375,7 @@ const PALETTE_GROUPS = [
     ["turn_to", "Turn To"],
     ["turn_target", "Turn to Target"],
     ["target", "Set Target"],
+    ["select", "Select Rocket"],
     ["stage", "Stage"],
     ["engine", "Engine On / Off"],
     ["parachute", "Parachute"],
@@ -2166,6 +2175,15 @@ function programToCode() {
         out.push(pad + parts.join(" "));
         break;
       }
+      case "select": {
+        const d = b.dir || "player";
+        let v = "player";
+        if (d === "nearest") v = "nearest";
+        else if (d === "index") v = "#" + (b.a || "1");
+        else if (d === "name") v = '"' + (b.b || "") + '"';
+        out.push(pad + "select rocket " + v);
+        break;
+      }
       case "target": {
         const d = b.dir || "nearest";
         out.push(pad + "target " + d + (d === "rocket" ? " " + (b.a || "1") : ""));
@@ -2424,6 +2442,14 @@ function parseCode(text) {
       else { b.a = "0"; b.b = m[2] || "10"; }
       add(b); continue;
     }
+    if ((m = line.match(/^select\s+rocket\s+(player|nearest|#\d+|"[^"]*")$/i))) {
+      const b = newBlock("select");
+      const v = m[1];
+      if (v[0] === "#") { b.dir = "index"; b.a = v.slice(1); }
+      else if (v[0] === '"') { b.dir = "name"; b.b = v.slice(1, -1); }
+      else b.dir = v.toLowerCase();
+      add(b); continue;
+    }
     if ((m = line.match(/^target\s+(nearest|planet|clear|rocket)(?:\s+(\S+))?$/i))) {
       const b = newBlock("target"); b.dir = m[1].toLowerCase(); b.a = m[2] || "1"; add(b); continue;
     }
@@ -2586,6 +2612,7 @@ end</pre>
 <tr><td><code>rcs up/down/left/right S</code></td><td>RCS translation for S seconds, then zeroed.</td></tr>
 <tr><td><code>warp N</code></td><td>Time warp up to step N; <code>warp 0</code> turns it off.</td></tr>
 <tr><td><code>hold heading prograde|retrograde|up|down|target|deg N S</code></td><td>Keep a heading even while the target direction moves, which is what SAS does. <code>deg</code> takes the same angle as <code>turn to</code>. Omit S to hold until STOP.</td></tr>
+<tr><td><code>select rocket player|nearest|#N|"name"</code></td><td>Hand this coroutine to another vessel. Everything after it, including the variables, follows that vessel. Two <code>on start</code> blocks with different selects fly two vessels at the same time. <code>player</code> gives control back.</td></tr>
 <tr><td><code>target nearest|planet|rocket N|clear</code></td><td>Set the map target yourself instead of clicking it: nearest other ship, the current planet, the N-th closest ship, or clear it.</td></tr>
 <tr><td><code>stage [N]</code></td><td>Activate the next stage, or stage N (1 = next).</td></tr>
 <tr><td><code>engine all|2 on|off</code></td><td>Switch engines. 1-based order; <code>all</code> = every engine,
@@ -2629,7 +2656,8 @@ SFS is 2D, so there is no orbital inclination: "launch to orbit" uses a target a
 <tr><td>Impact</td><td><code>TimeToImpact</code> (s), <code>ImpactDistance</code> (m), <code>ImpactLongitude</code> (deg),
   <code>ImpactToTarget</code> (m, only with a map target). The coast is solved as an orbit, the atmospheric part is
   step-by-step integrated with the game's own drag model, so touchdown is the real one and not the vacuum one</td></tr>
-<tr><td>World</td><td><code>WorldTime</code>, <code>TimewarpIndex</code>, <code>RocketCount</code></td></tr>
+<tr><td>World</td><td><code>WorldTime</code>, <code>TimewarpIndex</code>, <code>RocketCount</code>,
+  <code>InPhysics</code> (1/0, is this vessel simulated right now)</td></tr>
 <tr><td>Attitude</td><td><code>Heading</code> (-180..180, 0 = zenith), <code>AngularVel</code> (deg/s)</td></tr>
 <tr><td>Environment</td><td><code>Gravity</code>, <code>AirDensity</code>, <code>DynamicPressure</code>, <code>AtmosphereTop</code></td></tr>
 </table>

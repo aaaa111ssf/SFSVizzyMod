@@ -67,6 +67,14 @@ demo9_deorbit_target.txt    deorbit onto a map target
          target; on a bare planet the countdown is longer than the real one
   Note: it waits forever if the prediction says you will not come down
 
+demo10_two_vessels.txt      two vessels at once
+  Where: on the pad, press RUN, then stage once so there are two vessels
+  Shows: two ON START coroutines, the second one does select rocket #2 and
+         brings the dropped stage down while the first keeps climbing
+  Watch: two interleaved streams of log lines, each reporting its own
+         altitude; InPhysics tells you whether the far one is simulated
+  Note: variables are global, so the two halves must not use the same names
+
 --------------------------------------------------------------------
 mechjeb.txt   multi-mode autopilot (rewritten with the new blocks)
   Change mode in on start to pick a function:
