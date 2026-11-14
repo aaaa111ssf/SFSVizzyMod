@@ -130,6 +130,9 @@ namespace SFSVizzyMod
             {
                 vars["RocketCount"] = GameManager.main != null && GameManager.main.rockets != null
                     ? GameManager.main.rockets.Count : 0.0;
+                // 自己在这张表里排第几，和 select rocket #N 对得上
+                vars["RocketIndex"] = GameManager.main != null && GameManager.main.rockets != null
+                    ? GameManager.main.rockets.IndexOf(r) + 1 : 0.0;
             }
             catch (Exception) { }
 

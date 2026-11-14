@@ -2657,6 +2657,7 @@ SFS is 2D, so there is no orbital inclination: "launch to orbit" uses a target a
   <code>ImpactToTarget</code> (m, only with a map target). The coast is solved as an orbit, the atmospheric part is
   step-by-step integrated with the game's own drag model, so touchdown is the real one and not the vacuum one</td></tr>
 <tr><td>World</td><td><code>WorldTime</code>, <code>TimewarpIndex</code>, <code>RocketCount</code>,
+  <code>RocketIndex</code> (which number this vessel is, matches the <code>#N</code> in <code>select rocket</code>),
   <code>InPhysics</code> (1/0, is this vessel simulated right now)</td></tr>
 <tr><td>Attitude</td><td><code>Heading</code> (-180..180, 0 = zenith), <code>AngularVel</code> (deg/s)</td></tr>
 <tr><td>Environment</td><td><code>Gravity</code>, <code>AirDensity</code>, <code>DynamicPressure</code>, <code>AtmosphereTop</code></td></tr>

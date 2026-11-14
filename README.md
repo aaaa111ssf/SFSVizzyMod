@@ -91,7 +91,7 @@ Programs are saved to `Mods/SFSVizzyMod/program.json` and loaded back next time.
 | Orbit | `Apoapsis` `Periapsis` `Eccentricity` `Escaping` `Radius` `PlanetRadius` |
 | Orbit | `TimeToApoapsis` `TimeToPeriapsis` (s), `DistToApoapsis` `DistToPeriapsis` (m) |
 | Impact | `TimeToImpact` (s), `ImpactDistance` (m), `ImpactLongitude` (deg), `ImpactToTarget` (m, needs a map target) — the coast is solved, the atmosphere is integrated with the game's own drag model |
-| World | `WorldTime` `TimewarpIndex` `RocketCount` `InPhysics` |
+| World | `WorldTime` `TimewarpIndex` `RocketCount` `RocketIndex` `InPhysics` |
 | Environment | `Gravity` `AirDensity` `DynamicPressure` `AtmosphereTop` |
 | Target | `TargetDistance` `TargetBearing` `TargetLongitude` `HasTarget` |
 
@@ -217,7 +217,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | 轨道 | `Apoapsis` `Periapsis` `Eccentricity` `Escaping` `Radius` `PlanetRadius` |
 | 轨道 | `TimeToApoapsis` `TimeToPeriapsis`（秒） `DistToApoapsis` `DistToPeriapsis`（米） |
 | 落点 | `TimeToImpact`（秒） `ImpactDistance`（米） `ImpactLongitude`（度） `ImpactToTarget`（米 要先选目标） 轨道段解析 大气段按游戏自己的阻力积分 |
-| 世界 | `WorldTime` `TimewarpIndex` `RocketCount` `InPhysics` |
+| 世界 | `WorldTime` `TimewarpIndex` `RocketCount` `RocketIndex` `InPhysics` |
 | 环境 | `Gravity` `AirDensity` `DynamicPressure` `AtmosphereTop` |
 | 目标 | `TargetDistance` `TargetBearing` `TargetLongitude` `HasTarget` |
 

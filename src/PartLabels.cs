@@ -56,7 +56,9 @@ namespace SFSVizzyMod
                 + " wheels=" + r.partHolder.GetModules<WheelModule>().Length
                 + " rcs=" + r.partHolder.GetModules<RcsModule>().Length
                 + " decouplers=" + r.partHolder.GetModules<DetachModule>().Length
-                + " folding=" + r.partHolder.GetModules<ToggleModule>().Length);
+                + " folding=" + r.partHolder.GetModules<ToggleModule>().Length
+                + " rockets=" + (GameManager.main != null && GameManager.main.rockets != null
+                    ? GameManager.main.rockets.Count : 0));
         }
 
         private static bool TogglePressed()
@@ -80,6 +82,9 @@ namespace SFSVizzyMod
 
             List<Badge> badges = new List<Badge>();
             List<KeyValuePair<string, List<string>>> cats = new List<KeyValuePair<string, List<string>>>();
+
+            // 火箭编号：和 select rocket #N 用的是同一套序号，H 打开就能对上号
+            AddRockets(r, badges, cats);
 
             // 分级：画在每级第一个零件上
             List<Stage> stages = NonEmptyStages(r);
@@ -201,6 +206,56 @@ namespace SFSVizzyMod
                 DrawBadge(badges[i].Pos, badges[i].Text, badges[i].Color, badges[i].Width);
 
             DrawPanel(cats);
+        }
+
+        // 场上的火箭各画一个 #N，右上角顺便列出来（含高度 / 是否在跑物理）
+        private void AddRockets(Rocket player, List<Badge> badges, List<KeyValuePair<string, List<string>>> cats)
+        {
+            List<Rocket> all = null;
+            try { all = GameManager.main != null ? GameManager.main.rockets : null; }
+            catch (Exception) { }
+            if (all == null || all.Count == 0) return;
+
+            List<string> lines = new List<string>();
+            for (int i = 0; i < all.Count; i++)
+            {
+                Rocket r = all[i];
+                if (r == null) continue;
+
+                bool isPlayer = r == player;
+                string name = string.IsNullOrEmpty(r.rocketName) ? "rocket" : r.rocketName;
+                string alt = "?";
+                bool simulated = false;
+                Vector3 pos = Vector3.zero;
+                bool hasPos = false;
+                try
+                {
+                    alt = Short(r.location.Value.Height);
+                    simulated = r.physics != null && r.physics.PhysicsMode;
+                    pos = r.rb2d.transform.position;
+                    hasPos = true;
+                }
+                catch (Exception) { }
+
+                // 玩家那枚用黄色，别的用白色；在轨不模拟的调暗，免得以为是卡了
+                Color col = isPlayer ? new Color(1f, 0.85f, 0.3f)
+                                     : (simulated ? Color.white : new Color(0.62f, 0.72f, 0.85f));
+                if (hasPos) badges.Add(new Badge { Text = "#" + (i + 1), Pos = pos, Color = col, Width = 40f });
+
+                lines.Add("#" + (i + 1) + " " + name + "  " + alt
+                    + (isPlayer ? "  you" : (simulated ? "" : "  rail")));
+            }
+
+            if (lines.Count > 0)
+                cats.Add(new KeyValuePair<string, List<string>>("Rockets (" + lines.Count + ")", lines));
+        }
+
+        private static string Short(double m)
+        {
+            if (double.IsNaN(m) || double.IsInfinity(m)) return "?";
+            return Math.Abs(m) >= 1000.0
+                ? (m / 1000.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "km"
+                : m.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + "m";
         }
 
         private static List<Stage> NonEmptyStages(Rocket r)

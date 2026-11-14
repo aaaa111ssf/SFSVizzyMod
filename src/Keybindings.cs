@@ -46,7 +46,7 @@ namespace SFSVizzyMod
             CreateUI_Keybinding(toggleEditor, (KeybindingsPC.Key)KeyCode.F8, "Open the block editor in your browser");
             CreateUI_Keybinding(runProgram, (KeybindingsPC.Key)KeyCode.R, "Run the program open in the browser");
             CreateUI_Keybinding(stopProgram, (KeybindingsPC.Key)KeyCode.P, "Stop the running program");
-            CreateUI_Keybinding(togglePartLabels, (KeybindingsPC.Key)KeyCode.H, "Show part numbers for blocks");
+            CreateUI_Keybinding(togglePartLabels, (KeybindingsPC.Key)KeyCode.H, "Show part and rocket numbers");
         }
     }
 }
