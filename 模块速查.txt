@@ -329,6 +329,15 @@ target nearest|planet|rocket N|clear
   TimewarpIndex    当前加速档位
   RocketCount      场上火箭数量
 
+
+hold heading 方向 [角度] [秒]
+  作用：持续保持朝向，目标方向自己在动也能跟住（SAS 的效果）。
+  turn to 是一次性转到位就结束，这个会一直修正。
+  代码：hold heading prograde 10
+        hold heading retrograde 5
+        hold heading up           不写秒数就一直保持到程序停
+        hold heading deg 90 3     角度基准和 turn to 一样：0 = 天顶
+
 调试面板
   左下 Variables 会显示脚本里 set 的变量，边跑边更新。
   正在执行的那块积木会描蓝框。

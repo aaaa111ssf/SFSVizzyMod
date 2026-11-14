@@ -26,6 +26,7 @@ namespace SFSVizzyMod
         public const string Hold = "hold";
         public const string Warp = "warp";              // a = 目标档位，0/空 = 关闭
         public const string Target = "target";          // dir = nearest/planet/rocket/clear，a = 序号
+        public const string HoldHeading = "hold_heading"; // dir = prograde/retrograde/up/down/target/deg，b = 秒          // dir = nearest/planet/rocket/clear，a = 序号
         public const string Call = "call";
         public const string Continue = "continue";
         public const string Toggle = "toggle";

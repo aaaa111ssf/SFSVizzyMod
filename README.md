@@ -64,6 +64,7 @@ Programs are saved to `Mods/SFSVizzyMod/program.json` and loaded back next time.
 | Control | `hold vspeed 0 10` | PID hold on vertical speed; `0` hovers. Runs 10 s |
 | Control | `hold altitude 200 10` | PID hold 200 m above ground |
 | Control | `warp 3` | Time warp to step 3. `warp 0` turns it off |
+| Control | `hold heading prograde 10` | Keep a heading while the direction itself moves (SAS style). Also `retrograde` `up` `down` `target` `deg 90` |
 | Control | `target nearest` | Pick the map target from code: `nearest` other ship, `planet`, `rocket 2`, or `clear` |
 | Guidance | `burn dv 50 prograde` | Burn 50 m/s prograde and stop by itself. `retrograde` burns the other way |
 | Logic | `set x = 1 + 2` | Assign. Comparisons return 0/1, and `and` / `or` / `not` work across them. Functions: `min max abs sqrt clamp pow floor ceil round sin cos tan log ln`, constants `pi` `e` |
@@ -183,6 +184,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | 控制 | `hold vspeed 0 10` | PID 保持垂直速度 `0` 就是悬停 持续 10 秒 |
 | 控制 | `hold altitude 200 10` | PID 保持离地 200 m |
 | 控制 | `warp 3` | 时间加速到第 3 档 `warp 0` 关掉 |
+| 控制 | `hold heading prograde 10` | 持续保持朝向 目标方向自己在动也能跟住 和 SAS 一个意思 也能写 `retrograde` `up` `down` `target` `deg 90` |
 | 控制 | `target nearest` | 用积木设地图目标：最近的友舰 `planet` 当前星球 `rocket 2` 第 N 近的船 `clear` 清除 |
 | 制导 | `burn dv 50 prograde` | 顺行点火 50 m/s 够了自己停 `retrograde` 是反着烧 |
 | 逻辑 | `set x = 1 + 2` | 赋值 比较返回 0/1 比较之间能接 `and` / `or` / `not` 函数有 `min max abs sqrt clamp pow floor ceil round sin cos tan log ln` 常量 `pi` `e` |

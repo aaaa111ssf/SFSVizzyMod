@@ -700,6 +700,10 @@ namespace SFSVizzyMod
                     TargetBlock(b);
                     break;
 
+                case Kinds.HoldHeading:
+                    yield return HoldHeadingBlock(b);
+                    break;
+
                 case Kinds.Call:
                     yield return CallBlock(b, ctx);
                     break;
@@ -1280,6 +1284,73 @@ namespace SFSVizzyMod
             yield return RunList(f.blocks ?? new List<Block>(), ctx);
             callDepth--;
             if (!IsRunning) yield break;
+        }
+
+        // 把方向名换算成世界角；算不出来返回 NaN
+        private double WorldTargetFor(Rocket r, string dir, string degExpr)
+        {
+            Location loc = r.location.Value;
+            switch (string.IsNullOrEmpty(dir) ? "prograde" : dir)
+            {
+                case "up": return WorldVars.ZenithAngle(loc);
+                case "down": return WorldVars.ZenithAngle(loc) + 180.0;
+                case "retrograde": return WorldVars.VelocityAngle(loc) + 180.0;
+                case "target":
+                    if (WorldVars.GetTarget() == null) return double.NaN;
+                    return WorldVars.TargetWorldAngle(loc);
+                case "deg":
+                {
+                    double rel = Eval(string.IsNullOrEmpty(degExpr) ? "0" : degExpr);
+                    if (!IsRunning) return double.NaN;
+                    return WorldVars.ZenithAngle(loc) + rel;
+                }
+                default: return WorldVars.VelocityAngle(loc);   // prograde
+            }
+        }
+
+        // 持续保持某个朝向：每帧重算目标角，因为它本身在动（顺行方向会随轨道转）
+        private IEnumerator HoldHeadingBlock(Block b)
+        {
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) { Fail("hold heading: no rocket"); yield break; }
+            yield return WaitRealtime();
+            if (!IsRunning) yield break;
+
+            if ((b.dir ?? "") == "target" && WorldVars.GetTarget() == null)
+            {
+                Fail("hold heading: no target selected in map");
+                yield break;
+            }
+
+            double duration = OptionalDuration(b);
+            if (!IsRunning) yield break;
+            float end = duration > 0.05 ? Time.time + (float)duration : float.MaxValue;
+            Print("HOLD: heading " + (b.dir ?? "prograde")
+                + (duration > 0.05 ? " for " + duration.ToString("0.#") + "s" : " until stop"));
+
+            // 推力方向和刚体角度差一个固定偏移，取一次就够
+            double offset = 0.0;
+            try { offset = WorldVars.NormalizeAngle(r.GetRotation() - r.rb2d.rotation); }
+            catch (Exception) { }
+
+            while (IsRunning && Time.time < end)
+            {
+                double world = WorldTargetFor(r, b.dir, b.a);
+                if (double.IsNaN(world)) { Fail("hold heading: cannot resolve direction"); yield break; }
+
+                double bodyTarget = WorldVars.NormalizeAngle(world - offset);
+                double err = WorldVars.NormalizeAngle(bodyTarget - r.rb2d.rotation);
+
+                // 限速 120 度/秒：够跟得上，又不会甩过头
+                double step = Math.Min(Math.Abs(err), 120.0 * Math.Max(1e-3, Time.deltaTime));
+                if (step > 1e-4)
+                {
+                    r.rb2d.MoveRotation(r.rb2d.rotation + (float)(Math.Sign(err) * step));
+                    r.rb2d.angularVelocity = 0f;
+                }
+                yield return null;
+            }
+            Print("HOLD: heading done");
         }
 
         private void TargetBlock(Block b)

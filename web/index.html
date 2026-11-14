@@ -446,6 +446,7 @@ const KIND_COLOR = {
   turn_to: "#a85826",
   turn_target: "#8f5a2a",
   target: "#2f6f6a",
+  hold_heading: "#3a6fa8",
   stage: "#a8823c",
   engine: "#8a5a2b",
   parachute: "#a84b2c",
@@ -503,6 +504,7 @@ function newBlock(kind) {
     case "turn_to": b.a = "0"; b.dir = "deg"; b.b = ""; break;
     case "turn_target": b.a = "0"; b.dir = "target"; b.b = ""; break;
     case "target": b.dir = "nearest"; b.a = "1"; break;
+    case "hold_heading": b.dir = "prograde"; b.a = "0"; b.b = "10"; break;
     case "dialog": b.title = "Notice"; b.a = "Hello {planet}"; b.dir = "message"; b.var = "answer"; b.b = "0"; break;
     case "repeat": b.a = "5"; break;
     case "fail": b.a = "Program failed"; break;
@@ -617,6 +619,7 @@ function cleanProgram(p) {
     if (b.kind === "hold") o.dir = b.dir || "vspeed";
     if (b.kind === "burn") o.dir = b.dir || "prograde";
     if (b.kind === "target") o.dir = b.dir || "nearest";
+    if (b.kind === "hold_heading") o.dir = b.dir || "prograde";
     if (b.kind === "rcs_move") o.dir = b.dir || "up";
     if (b.kind === "dialog") {
       o.dir = b.dir || "message";
@@ -1013,6 +1016,12 @@ function renderBlock(list, index, path, parent) {
     case "random":
       row.appendChild(field(b, "a", 80, "value"));
       break;
+    case "hold_heading":
+      row.appendChild(choiceSelect(b, [["prograde", "prograde"], ["retrograde", "retrograde"], ["up", "up"], ["down", "down"], ["target", "target"], ["deg", "deg"]]));
+      if (b.dir === "deg") row.appendChild(field(b, "a", 40, "0"));
+      row.appendChild(el("span", "dim", "秒"));
+      row.appendChild(field(b, "b", 30, "10"));
+      break;
     case "target":
       row.appendChild(choiceSelect(b, [["nearest", "nearest"], ["planet", "planet"], ["rocket", "rocket"], ["clear", "clear"]]));
       if (b.dir === "rocket") {
@@ -1361,6 +1370,7 @@ const PALETTE_GROUPS = [
     ["deploy", "Deploy / Retract"],
     ["wheel", "Wheel"],
     ["hold", "Hold (PID)"],
+    ["hold_heading", "Hold Heading"],
     ["warp", "Warp"]
   ]],
   ["Logic", [
@@ -2130,6 +2140,14 @@ function programToCode() {
       case "match": out.push(pad + "match velocity " + (b.a || "1")); break;
       case "rcs_move": out.push(pad + "rcs " + (b.dir || "up") + " " + (b.a || "2")); break;
       case "call": out.push(pad + "call " + (b.a || "my_func")); break;
+      case "hold_heading": {
+        const d = b.dir || "prograde";
+        const parts = ["hold heading", d];
+        if (d === "deg") parts.push(b.a || "0");
+        if (b.b) parts.push(b.b);
+        out.push(pad + parts.join(" "));
+        break;
+      }
       case "target": {
         const d = b.dir || "nearest";
         out.push(pad + "target " + d + (d === "rocket" ? " " + (b.a || "1") : ""));
@@ -2381,6 +2399,13 @@ function parseCode(text) {
     if ((m = line.match(/^throttle\s+off$/i))) { add(newBlock("throttle_off")); continue; }
     if ((m = line.match(/^rcs\s+on$/i))) { add(newBlock("rcs_on")); continue; }
     if ((m = line.match(/^rcs\s+off$/i))) { add(newBlock("rcs_off")); continue; }
+    if ((m = line.match(/^hold\s+heading\s+(prograde|retrograde|up|down|target|deg)(?:\s+(\S+))?(?:\s+(\S+))?$/i))) {
+      const b = newBlock("hold_heading");
+      b.dir = m[1].toLowerCase();
+      if (b.dir === "deg") { b.a = m[2] || "0"; b.b = m[3] || "10"; }
+      else { b.a = "0"; b.b = m[2] || "10"; }
+      add(b); continue;
+    }
     if ((m = line.match(/^target\s+(nearest|planet|clear|rocket)(?:\s+(\S+))?$/i))) {
       const b = newBlock("target"); b.dir = m[1].toLowerCase(); b.a = m[2] || "1"; add(b); continue;
     }
@@ -2542,6 +2567,7 @@ end</pre>
 <tr><td><code>match velocity tol N</code></td><td>Kill the relative velocity to the map target down to N m/s.</td></tr>
 <tr><td><code>rcs up/down/left/right S</code></td><td>RCS translation for S seconds, then zeroed.</td></tr>
 <tr><td><code>warp N</code></td><td>Time warp up to step N; <code>warp 0</code> turns it off.</td></tr>
+<tr><td><code>hold heading prograde|retrograde|up|down|target|deg N S</code></td><td>Keep a heading even while the target direction moves, which is what SAS does. <code>deg</code> takes the same angle as <code>turn to</code>. Omit S to hold until STOP.</td></tr>
 <tr><td><code>target nearest|planet|rocket N|clear</code></td><td>Set the map target yourself instead of clicking it: nearest other ship, the current planet, the N-th closest ship, or clear it.</td></tr>
 <tr><td><code>stage [N]</code></td><td>Activate the next stage, or stage N (1 = next).</td></tr>
 <tr><td><code>engine all|2 on|off</code></td><td>Switch engines. 1-based order; <code>all</code> = every engine,
