@@ -59,6 +59,7 @@ Programs are saved to `Mods/SFSVizzyMod/program.json` and loaded back next time.
 | Parts | `engine all on` | Engine on and off. Selector takes `all`, an index, or `stage 2` |
 | Parts | `parachute all deploy` | Deploy the chute (half then full); `cut` releases it |
 | Parts | `deploy all` `retract all` | Fold and unfold parts: landing legs, solar panels |
+| Parts | `engine "merlin" on` | Any part block also takes a quoted name (case-insensitive substring), which is how modded parts get picked. H to see names |
 | Parts | `wheel all on` | Wheels on and off |
 | Parts | `wheel all power 0.4 5` | Wheel power 0.4 for 5 s |
 | Parts | `wheel all steer 0.6 2` | Steer 0.6 for 2 s |
@@ -186,6 +187,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | 部件 | `parachute all deploy` | 开伞（先半开再全开） `cut` 是切断 |
 | 部件 | `deploy all` `retract all` | 展开 / 收起折叠件 着陆腿和太阳能板都归它管 |
 | 部件 | `wheel all on` | 轮子开关 |
+| 部件 | `engine "默林" on` | 所有选部件的积木都能写名字（不区分大小写，包含匹配）模组零件靠这条选 按 H 能看到名字 |
 | 部件 | `wheel all power 0.4 5` | 轮子动力 0.4 开 5 秒 |
 | 部件 | `wheel all steer 0.6 2` | 转向 0.6 持续 2 秒 |
 | 控制 | `hold vspeed 0 10` | PID 保持垂直速度 `0` 就是悬停 持续 10 秒 |

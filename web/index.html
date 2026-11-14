@@ -2472,7 +2472,7 @@ function parseCode(text) {
     if ((m = line.match(/^turn\s+(.+)$/i))) {
       const b = newBlock("turn"); b.dir = "rel"; b.a = m[1].trim(); add(b); continue;
     }
-    if ((m = line.match(/^engine\s+((?:stage\s+\d+)|\S+)\s+(on|off)$/i))) {
+    if ((m = line.match(/^engine\s+((?:stage\s+\d+)|"[^"]*"|\S+)\s+(on|off)$/i))) {
       const b = newBlock("engine"); b.a = m[1]; b.dir = m[2].toLowerCase(); add(b); continue;
     }
     if ((m = line.match(/^warp\s+(\S+)$/i))) {
@@ -2481,19 +2481,19 @@ function parseCode(text) {
     if ((m = line.match(/^hold\s+(vspeed|altitude)\s+(\S+)(?:\s+(\S+))?$/i))) {
       const b = newBlock("hold"); b.dir = m[1].toLowerCase(); b.a = m[2]; b.b = m[3] || "10"; add(b); continue;
     }
-    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|\S+)\s+(on|off)$/i))) {
+    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|"[^"]*"|\S+)\s+(on|off)$/i))) {
       const b = newBlock("wheel"); b.a = m[1]; b.dir = m[2].toLowerCase(); add(b); continue;
     }
-    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|\S+)\s+power\s+(\S+)(?:\s+(\S+))?$/i))) {
+    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|"[^"]*"|\S+)\s+power\s+(\S+)(?:\s+(\S+))?$/i))) {
       const b = newBlock("wheel"); b.a = m[1]; b.dir = "power"; b.b = m[2]; b.title = m[3] || "2"; add(b); continue;
     }
-    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|\S+)\s+steer\s+(\S+)(?:\s+(\S+))?$/i))) {
+    if ((m = line.match(/^wheel\s+((?:stage\s+\d+)|"[^"]*"|\S+)\s+steer\s+(\S+)(?:\s+(\S+))?$/i))) {
       const b = newBlock("wheel"); b.a = m[1]; b.dir = "steer"; b.b = m[2]; b.title = m[3] || "1"; add(b); continue;
     }
-    if ((m = line.match(/^(deploy|retract)\s+((?:stage\s+\d+)|\S+)$/i))) {
+    if ((m = line.match(/^(deploy|retract)\s+((?:stage\s+\d+)|"[^"]*"|\S+)$/i))) {
       const b = newBlock("deploy"); b.dir = m[1].toLowerCase(); b.a = m[2]; add(b); continue;
     }
-    if ((m = line.match(/^parachute\s+((?:stage\s+\d+)|\S+)\s+(deploy|cut)$/i))) {
+    if ((m = line.match(/^parachute\s+((?:stage\s+\d+)|"[^"]*"|\S+)\s+(deploy|cut)$/i))) {
       const b = newBlock("parachute"); b.a = m[1]; b.dir = m[2].toLowerCase(); add(b); continue;
     }
     if ((m = line.match(/^stage(?:\s+(\d+))?$/i))) {
@@ -2617,6 +2617,10 @@ end</pre>
 <tr><td><code>stage [N]</code></td><td>Activate the next stage, or stage N (1 = next).</td></tr>
 <tr><td><code>engine all|2 on|off</code></td><td>Switch engines. 1-based order; <code>all</code> = every engine,
   <code>stage 1</code> = engines in stage 1.</td></tr>
+<tr><td>part selectors</td><td>Every part block takes the same four forms: <code>all</code>, a number,
+  <code>stage N</code>, or a part name in quotes such as <code>engine "Merlin 1D" on</code>. The name is a
+  case-insensitive substring, so <code>"merlin"</code> is enough. Press <b>H</b> in game: the panel now
+  lists the part name next to every number, and modded parts show up there too.</td></tr>
 <tr><td><code>parachute all|2|stage 1 deploy|cut</code></td><td>Deploy fully or cut chutes.
   Same selector rules; press <b>H</b> in game to see part numbers.</td></tr>
 <tr><td><code>set x = expr</code></td><td>User variable.</td></tr>

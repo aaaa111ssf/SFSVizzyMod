@@ -108,7 +108,7 @@ namespace SFSVizzyMod
                 bool on = false;
                 try { on = eng.engineOn.Value; } catch (Exception) { }
                 badges.Add(new Badge { Text = "E" + (k + 1), Pos = eng.transform.position, Color = on ? Color.white : new Color(0.55f, 0.55f, 0.55f), Width = 40f });
-                engLines.Add("E" + (k + 1) + "  " + (on ? "on" : "off"));
+                engLines.Add("E" + (k + 1) + "  " + (on ? "on" : "off") + "  " + PartName(eng));
             }
             cats.Add(new KeyValuePair<string, List<string>>("Engines (" + engines.Length + ")", engLines));
 
@@ -123,7 +123,7 @@ namespace SFSVizzyMod
                 try { st = ch.state.Value; } catch (Exception) { }
                 string state = st >= 3f ? "cut" : st >= 2f ? "full" : st >= 1f ? "half" : "stowed";
                 badges.Add(new Badge { Text = "P" + (k + 1), Pos = ch.transform.position, Color = st > 0f ? Color.white : new Color(0.55f, 0.55f, 0.55f), Width = 40f });
-                chuteLines.Add("P" + (k + 1) + "  " + state);
+                chuteLines.Add("P" + (k + 1) + "  " + state + "  " + PartName(ch));
             }
             cats.Add(new KeyValuePair<string, List<string>>("Parachutes (" + chutes.Length + ")", chuteLines));
 
@@ -137,7 +137,7 @@ namespace SFSVizzyMod
                 bool on = false;
                 try { on = w.on.Value; } catch (Exception) { }
                 badges.Add(new Badge { Text = "W" + (k + 1), Pos = w.transform.position, Color = on ? Color.white : new Color(0.55f, 0.55f, 0.55f), Width = 40f });
-                wheelLines.Add("W" + (k + 1) + "  " + (on ? "on" : "off"));
+                wheelLines.Add("W" + (k + 1) + "  " + (on ? "on" : "off") + "  " + PartName(w));
             }
             cats.Add(new KeyValuePair<string, List<string>>("Wheels (" + wheels.Length + ")", wheelLines));
 
@@ -148,7 +148,7 @@ namespace SFSVizzyMod
             for (int k = 0; k < rcsOrder.Length; k++)
             {
                 badges.Add(new Badge { Text = "R" + (k + 1), Pos = rcs[rcsOrder[k]].transform.position, Color = Color.white, Width = 40f });
-                rcsLines.Add("R" + (k + 1));
+                rcsLines.Add("R" + (k + 1) + "  " + PartName(rcs[rcsOrder[k]]));
             }
             cats.Add(new KeyValuePair<string, List<string>>("Rcs (" + rcs.Length + ")", rcsLines));
 
@@ -159,7 +159,7 @@ namespace SFSVizzyMod
             for (int k = 0; k < detachOrder.Length; k++)
             {
                 badges.Add(new Badge { Text = "D" + (k + 1), Pos = detach[detachOrder[k]].transform.position, Color = Color.white, Width = 40f });
-                detachLines.Add("D" + (k + 1));
+                detachLines.Add("D" + (k + 1) + "  " + PartName(detach[detachOrder[k]]));
             }
             cats.Add(new KeyValuePair<string, List<string>>("Decouplers (" + detach.Length + ")", detachLines));
 
@@ -182,19 +182,19 @@ namespace SFSVizzyMod
                 {
                     legNo++;
                     badges.Add(new Badge { Text = "L" + legNo, Pos = t.transform.position, Color = deployed ? Color.white : new Color(0.55f, 0.55f, 0.55f), Width = 40f });
-                    legLines.Add("L" + legNo + "  " + (deployed ? "down" : "up"));
+                    legLines.Add("L" + legNo + "  " + (deployed ? "down" : "up") + "  " + pname);
                 }
                 else if (pname.IndexOf("solar", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     solarNo++;
                     badges.Add(new Badge { Text = "A" + solarNo, Pos = t.transform.position, Color = deployed ? Color.white : new Color(0.55f, 0.55f, 0.55f), Width = 40f });
-                    solarLines.Add("A" + solarNo + "  " + (deployed ? "open" : "closed"));
+                    solarLines.Add("A" + solarNo + "  " + (deployed ? "open" : "closed") + "  " + pname);
                 }
                 else
                 {
                     otherNo++;
                     badges.Add(new Badge { Text = "T" + otherNo, Pos = t.transform.position, Color = deployed ? Color.white : new Color(0.55f, 0.55f, 0.55f), Width = 40f });
-                    otherLines.Add("T" + otherNo + "  " + (deployed ? "open" : "closed"));
+                    otherLines.Add("T" + otherNo + "  " + (deployed ? "open" : "closed") + "  " + pname);
                 }
             }
             cats.Add(new KeyValuePair<string, List<string>>("Legs (" + legLines.Count + ")", legLines));
@@ -248,6 +248,15 @@ namespace SFSVizzyMod
 
             if (lines.Count > 0)
                 cats.Add(new KeyValuePair<string, List<string>>("Rockets (" + lines.Count + ")", lines));
+        }
+
+        // 面板只有 236 宽，零件名截短一点；模组零件名字一般也够看
+        private static string PartName(Component c)
+        {
+            if (c == null) return "";
+            Part p = c.GetComponent<Part>();
+            if (p == null || string.IsNullOrEmpty(p.Name)) return "";
+            return p.Name.Length > 14 ? p.Name.Substring(0, 14) : p.Name;
         }
 
         private static string Short(double m)

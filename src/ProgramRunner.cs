@@ -1058,8 +1058,24 @@ namespace SFSVizzyMod
             }
 
             int index;
-            if (!int.TryParse(sel, out index) || index < 1 || index > ordered.Length) return new int[0];
-            return new[] { ordered[index - 1] };
+            if (int.TryParse(sel, out index) && index >= 1 && index <= ordered.Length)
+                return new[] { ordered[index - 1] };
+
+            // 剩下的一律当零件名：带不带引号都行，包含匹配（模组零件主要靠这条）
+            string want = sel;
+            if (want.Length >= 2 && want[0] == '"' && want[want.Length - 1] == '"')
+                want = want.Substring(1, want.Length - 2);
+            if (want.Length == 0) return new int[0];
+
+            List<int> byName = new List<int>();
+            for (int i = 0; i < ordered.Length; i++)
+            {
+                Part part = mods[ordered[i]] != null ? mods[ordered[i]].GetComponent<Part>() : null;
+                string pname = part != null ? part.Name : "";
+                if (!string.IsNullOrEmpty(pname) && pname.IndexOf(want, StringComparison.OrdinalIgnoreCase) >= 0)
+                    byName.Add(ordered[i]);
+            }
+            return byName.ToArray();
         }
 
         private void EngineBlock(Rocket r, Block b)

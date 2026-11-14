@@ -141,15 +141,30 @@ namespace SFSVizzyMod
             {
                 double amount = 0.0, capacity = 0.0;
                 ResourceModule[] resources = r.partHolder.GetModules<ResourceModule>();
+
+                // 第一遍按常见推进剂名字认，模组燃料大多能对上
                 for (int i = 0; i < resources.Length; i++)
                 {
                     ResourceModule res = resources[i];
                     if (res.resourceType == null) continue;
-                    string typeName = res.resourceType.name;
-                    if (string.IsNullOrEmpty(typeName) || typeName.IndexOf("fuel", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    if (!FuelLike(res.resourceType.name)) continue;
                     capacity += res.TotalResourceCapacity;
                     amount += res.ResourceAmount;
                 }
+
+                // 一个都没认出来：退一步把不是电 / 单组元 / RCS 的都算作燃料
+                if (capacity <= 0.0)
+                {
+                    for (int i = 0; i < resources.Length; i++)
+                    {
+                        ResourceModule res = resources[i];
+                        if (res.resourceType == null) continue;
+                        if (NotFuel(res.resourceType.name)) continue;
+                        capacity += res.TotalResourceCapacity;
+                        amount += res.ResourceAmount;
+                    }
+                }
+
                 vars["FuelAmount"] = amount;
                 vars["FuelCapacity"] = capacity;
                 vars["Fuel"] = capacity > 0.0 ? Math.Min(1.0, Math.Max(0.0, amount / capacity)) : 0.0;
@@ -309,6 +324,29 @@ namespace SFSVizzyMod
                 info = e.Message;
                 return false;
             }
+        }
+
+        // 原版叫 Fuel；模组推进剂名字五花八门，先把常见的认下来
+        private static bool FuelLike(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            string n = name.ToLowerInvariant();
+            string[] keys = { "fuel", "methane", "methalox", "rp-1", "rp1", "kerosene", "hydrolox",
+                              "hydrogen", "lfo", "aerozine", "udmh", "dinitrogen", "petrol", "diesel" };
+            for (int i = 0; i < keys.Length; i++)
+                if (n.IndexOf(keys[i], StringComparison.Ordinal) >= 0) return true;
+            return false;
+        }
+
+        // 显然不是主推进剂的东西
+        private static bool NotFuel(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            string n = name.ToLowerInvariant();
+            string[] keys = { "mono", "rcs", "electric", "battery", "power", "water", "ore", "ballast" };
+            for (int i = 0; i < keys.Length; i++)
+                if (n.IndexOf(keys[i], StringComparison.Ordinal) >= 0) return true;
+            return false;
         }
 
         // 选择器：#2 / nearest / name:Foo。找不到返回 null
