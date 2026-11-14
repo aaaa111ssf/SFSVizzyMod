@@ -338,6 +338,14 @@ hold heading 方向 [角度] [秒]
         hold heading up           不写秒数就一直保持到程序停
         hold heading deg 90 3     角度基准和 turn to 一样：0 = 天顶
 
+
+落点预测（只按轨道算，忽略大气阻力）
+  TimeToImpact      还有多久砸到地面（秒），够不着地面就是 1e9
+  ImpactDistance    当前点到落点的直线距离（米）
+  ImpactLongitude   落点经度（度）
+  用法：wait until TimeToImpact < 30   然后 burn dv ... retrograde
+  注意：无大气天体（月球）准；有大气会算远，因为没算阻力。
+
 调试面板
   左下 Variables 会显示脚本里 set 的变量，边跑边更新。
   正在执行的那块积木会描蓝框。

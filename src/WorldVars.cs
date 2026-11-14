@@ -93,6 +93,10 @@ namespace SFSVizzyMod
             vars["TimeToPeriapsis"] = 1e9;
             vars["DistToApoapsis"] = 0.0;
             vars["DistToPeriapsis"] = 0.0;
+            // 落点：没有交点就给 1e9 / 0，免得 wait until TimeToImpact < 10 立刻触发
+            vars["TimeToImpact"] = 1e9;
+            vars["ImpactDistance"] = 0.0;
+            vars["ImpactLongitude"] = 0.0;
 
             // 轨道根数：地表静止时 TryCreateOrbit 会失败，跳过即可
             // 第 2 个参数要 true，否则近拱点时刻和平均角速度算不出来
@@ -178,6 +182,27 @@ namespace SFSVizzyMod
             double tAp = double.NaN, tPe = double.NaN;
             try { tAp = orbit.GetNextTrueAnomalyPassTime(now, Math.PI); } catch (Exception) { }
             try { tPe = orbit.GetNextTrueAnomalyPassTime(now, 0.0); } catch (Exception) { }
+
+            // 落点预测：只算轨道和地面相交的情况（真空二体，忽略大气阻力）
+            try
+            {
+                double surf = loc.planet.Radius;
+                if (orbit.periapsis < surf && orbit.ecc < 1.0)
+                {
+                    // 半径 = 地表时有两个解，落地走下降段，取负的
+                    double nu = Kepler.GetTrueAnomalyAtRadius(surf, orbit.slr, orbit.ecc);
+                    double tHit = orbit.GetNextTrueAnomalyPassTime(now, -nu);
+                    double dt = TimeOrFallback(tHit - now);
+                    if (dt < 1e8)
+                    {
+                        Location hit = orbit.GetLocation(tHit);
+                        vars["TimeToImpact"] = dt;
+                        vars["ImpactDistance"] = (hit.position - loc.position).magnitude;
+                        vars["ImpactLongitude"] = NormalizeAngle(hit.position.AngleRadians * 180.0 / Math.PI);
+                    }
+                }
+            }
+            catch (Exception) { }
 
             double dAp = TimeOrFallback(tAp - now);
             double dPe = TimeOrFallback(tPe - now);
