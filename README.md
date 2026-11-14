@@ -64,6 +64,7 @@ Programs are saved to `Mods/SFSVizzyMod/program.json` and loaded back next time.
 | Control | `hold vspeed 0 10` | PID hold on vertical speed; `0` hovers. Runs 10 s |
 | Control | `hold altitude 200 10` | PID hold 200 m above ground |
 | Control | `warp 3` | Time warp to step 3. `warp 0` turns it off |
+| Control | `target nearest` | Pick the map target from code: `nearest` other ship, `planet`, `rocket 2`, or `clear` |
 | Guidance | `burn dv 50 prograde` | Burn 50 m/s prograde and stop by itself. `retrograde` burns the other way |
 | Logic | `set x = 1 + 2` | Assign. Comparisons return 0/1, and `and` / `or` / `not` work across them. Functions: `min max abs sqrt clamp pow floor ceil round sin cos tan log ln`, constants `pi` `e` |
 | Logic | `log "alt {AltitudeAGL} m"` | Print to the console; `{name}` is replaced with the value |
@@ -85,6 +86,8 @@ Programs are saved to `Mods/SFSVizzyMod/program.json` and loaded back next time.
 | Flight | `Speed` `VerticalSpeed` `HorizontalSpeed` `Altitude` `AltitudeAGL` `Heading` `AngularVel` |
 | Rocket | `Mass` `TWR` `MaxTWR` `Fuel` `FuelAmount` `FuelCapacity` |
 | Orbit | `Apoapsis` `Periapsis` `Eccentricity` `Escaping` `Radius` `PlanetRadius` |
+| Orbit | `TimeToApoapsis` `TimeToPeriapsis` (s), `DistToApoapsis` `DistToPeriapsis` (m) |
+| World | `WorldTime` `TimewarpIndex` `RocketCount` |
 | Environment | `Gravity` `AirDensity` `DynamicPressure` `AtmosphereTop` |
 | Target | `TargetDistance` `TargetBearing` `TargetLongitude` `HasTarget` |
 
@@ -112,6 +115,7 @@ Everything in `examples/` can be pasted straight into the CODE view:
 - `wait`, `if` and `while` conditions can chain: `while tries < 12 and abs(Apoapsis - Ap) > tol`
 - On the pad there is no orbit yet, so `Apoapsis` falls back to the current altitude
 - `hold` and `burn` wait for time warp to end; burning while warping does nothing
+- On an escape trajectory `TimeToApoapsis` reads 1e9, not 0, so `wait until TimeToApoapsis < 30` never fires by accident
 - In the Chinese build the UI is Chinese, but code keywords and variables stay English
 - When picking parts by index, press **H** in game to see the numbers
 
@@ -179,6 +183,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | 控制 | `hold vspeed 0 10` | PID 保持垂直速度 `0` 就是悬停 持续 10 秒 |
 | 控制 | `hold altitude 200 10` | PID 保持离地 200 m |
 | 控制 | `warp 3` | 时间加速到第 3 档 `warp 0` 关掉 |
+| 控制 | `target nearest` | 用积木设地图目标：最近的友舰 `planet` 当前星球 `rocket 2` 第 N 近的船 `clear` 清除 |
 | 制导 | `burn dv 50 prograde` | 顺行点火 50 m/s 够了自己停 `retrograde` 是反着烧 |
 | 逻辑 | `set x = 1 + 2` | 赋值 比较返回 0/1 比较之间能接 `and` / `or` / `not` 函数有 `min max abs sqrt clamp pow floor ceil round sin cos tan log ln` 常量 `pi` `e` |
 | 逻辑 | `log "高度 {AltitudeAGL} m"` | 打到控制台 `{变量}` 会换成当前值 |
@@ -200,6 +205,8 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | 飞行 | `Speed` `VerticalSpeed` `HorizontalSpeed` `Altitude` `AltitudeAGL` `Heading` `AngularVel` |
 | 火箭 | `Mass` `TWR` `MaxTWR` `Fuel` `FuelAmount` `FuelCapacity` |
 | 轨道 | `Apoapsis` `Periapsis` `Eccentricity` `Escaping` `Radius` `PlanetRadius` |
+| 轨道 | `TimeToApoapsis` `TimeToPeriapsis`（秒） `DistToApoapsis` `DistToPeriapsis`（米） |
+| 世界 | `WorldTime` `TimewarpIndex` `RocketCount` |
 | 环境 | `Gravity` `AirDensity` `DynamicPressure` `AtmosphereTop` |
 | 目标 | `TargetDistance` `TargetBearing` `TargetLongitude` `HasTarget` |
 
@@ -227,5 +234,6 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 - `wait`、`if`、`while` 的条件能连写：`while tries < 12 and abs(Apoapsis - Ap) > tol`
 - 发射台上还没入轨 `Apoapsis` 会按当前高度算 别指望它有值
 - `hold` 和 `burn` 会先等时间加速退出 加速状态下点火是无效的
+- 逃离轨道没有远拱点 `TimeToApoapsis` 给的是 1e9 不是 0 免得 `wait until TimeToApoapsis < 30` 一开局就触发
 - 中文版的界面是中文 但代码关键字和变量名还是英文
 - 选部件用编号时 先按 **H** 看看各部件是几号

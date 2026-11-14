@@ -24,7 +24,8 @@ namespace SFSVizzyMod
         public const string Deploy = "deploy";
         public const string Wheel = "wheel";
         public const string Hold = "hold";
-        public const string Warp = "warp";
+        public const string Warp = "warp";              // a = 目标档位，0/空 = 关闭
+        public const string Target = "target";          // dir = nearest/planet/rocket/clear，a = 序号
         public const string Call = "call";
         public const string Continue = "continue";
         public const string Toggle = "toggle";

@@ -38,6 +38,11 @@ namespace SFSVizzyMod
                 go.AddComponent<DialogUI>();
                 go.AddComponent<PartLabels>();
                 CrashWatcher.Install();
+
+                // 浏览器抢了焦点也不让游戏暂停，边飞边写才成立
+                try { Application.runInBackground = true; }
+                catch (Exception) { }
+
                 Debug.Log("[SFSVizzy] Loaded");
             }
             catch (Exception e)

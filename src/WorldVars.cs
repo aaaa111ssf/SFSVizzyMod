@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using SFS.Parts.Modules;
 using SFS.World;
 using SFS.World.Maps;
+using SFS.WorldBase;
 
 namespace SFSVizzyMod
 {
@@ -87,12 +88,18 @@ namespace SFSVizzyMod
             vars["Periapsis"] = 0.0;
             vars["Eccentricity"] = 0.0;
             vars["Escaping"] = 0.0;
+            // 到拱点给个大数而不是 0：0 会让 "wait until TimeToApoapsis < 30" 立刻触发
+            vars["TimeToApoapsis"] = 1e9;
+            vars["TimeToPeriapsis"] = 1e9;
+            vars["DistToApoapsis"] = 0.0;
+            vars["DistToPeriapsis"] = 0.0;
 
             // 轨道根数：地表静止时 TryCreateOrbit 会失败，跳过即可
+            // 第 2 个参数要 true，否则近拱点时刻和平均角速度算不出来
             try
             {
                 bool ok;
-                Orbit orbit = Orbit.TryCreateOrbit(loc, false, false, out ok);
+                Orbit orbit = Orbit.TryCreateOrbit(loc, true, false, out ok);
                 if (ok && orbit != null)
                 {
                     double pe = orbit.periapsis - loc.planet.Radius;
@@ -101,7 +108,19 @@ namespace SFSVizzyMod
                     vars["Apoapsis"] = double.IsFinite(ap) ? ap : 1e12;
                     vars["Eccentricity"] = double.IsFinite(orbit.ecc) ? orbit.ecc : 0.0;
                     vars["Escaping"] = orbit.ecc >= 1.0 || orbit.apoapsis >= loc.planet.SOI ? 1.0 : 0.0;
+
+                    FillApsisTimes(orbit, loc, vars);
                 }
+            }
+            catch (Exception) { }
+
+            // 世界状态：加速档位和游戏时间，写等待条件时有用
+            vars["TimewarpIndex"] = WorldTime.main != null ? WorldTime.main.timewarpIndex : 0.0;
+            vars["WorldTime"] = WorldTime.main != null ? WorldTime.main.worldTime : 0.0;
+            try
+            {
+                vars["RocketCount"] = GameManager.main != null && GameManager.main.rockets != null
+                    ? GameManager.main.rockets.Count : 0.0;
             }
             catch (Exception) { }
 
@@ -149,6 +168,107 @@ namespace SFSVizzyMod
                 }
             }
             catch (Exception) { }
+        }
+
+        // 到远/近拱点的时间与直线距离：轨道时间参数没算出来就给大数/0
+        private static void FillApsisTimes(Orbit orbit, Location loc, Dictionary<string, double> vars)
+        {
+            double now = WorldTime.main != null ? WorldTime.main.worldTime : 0.0;
+
+            double tAp = double.NaN, tPe = double.NaN;
+            try { tAp = orbit.GetNextTrueAnomalyPassTime(now, Math.PI); } catch (Exception) { }
+            try { tPe = orbit.GetNextTrueAnomalyPassTime(now, 0.0); } catch (Exception) { }
+
+            double dAp = TimeOrFallback(tAp - now);
+            double dPe = TimeOrFallback(tPe - now);
+            vars["TimeToApoapsis"] = dAp;
+            vars["TimeToPeriapsis"] = dPe;
+
+            try
+            {
+                if (dAp < 1e8) vars["DistToApoapsis"] = (orbit.GetLocation(tAp).position - loc.position).magnitude;
+            }
+            catch (Exception) { }
+            try
+            {
+                if (dPe < 1e8) vars["DistToPeriapsis"] = (orbit.GetLocation(tPe).position - loc.position).magnitude;
+            }
+            catch (Exception) { }
+        }
+
+        // 逃离轨道没有下一个拱点：算不出来或算出负数就返回一个大数
+        private static double TimeOrFallback(double seconds)
+        {
+            if (!double.IsFinite(seconds) || seconds < 0.0) return 1e9;
+            return seconds > 1e8 ? 1e9 : seconds;
+        }
+
+        // 设置 / 清除地图目标。mode = nearest / planet / rocket / clear
+        public static bool SetTarget(string mode, int index, Rocket self, out string info)
+        {
+            info = "";
+            try
+            {
+                if (Map.navigation == null) { info = "map not ready"; return false; }
+
+                if (mode == "clear")
+                {
+                    Map.navigation.SetTarget(null);
+                    info = "cleared";
+                    return true;
+                }
+
+                if (mode == "planet")
+                {
+                    Planet here = self.location.Value.planet;
+                    for (int i = 0; i < SelectableObject.mapObjects.Count; i++)
+                    {
+                        MapPlanet mp = SelectableObject.mapObjects[i] as MapPlanet;
+                        if (mp != null && mp.planet == here)
+                        {
+                            Map.navigation.SetTarget(mp);
+                            info = mp.planet.DisplayName;
+                            return true;
+                        }
+                    }
+                    info = "planet icon not found";
+                    return false;
+                }
+
+                // nearest / rocket N：都从「别的飞船」里挑，按距离排序
+                List<MapRocket> list = new List<MapRocket>();
+                for (int i = 0; i < SelectableObject.mapObjects.Count; i++)
+                {
+                    MapRocket mr = SelectableObject.mapObjects[i] as MapRocket;
+                    if (mr == null || mr.rocket == null || mr.rocket == self) continue;
+                    list.Add(mr);
+                }
+                if (list.Count == 0) { info = "no other rockets"; return false; }
+
+                Location here2 = self.location.Value;
+                list.Sort(delegate (MapRocket x, MapRocket y)
+                {
+                    double dx = (x.rocket.location.Value.position - here2.position).magnitude;
+                    double dy = (y.rocket.location.Value.position - here2.position).magnitude;
+                    return dx.CompareTo(dy);
+                });
+
+                int pick = mode == "nearest" ? 1 : index;
+                if (pick < 1 || pick > list.Count)
+                {
+                    info = "index out of range (1.." + list.Count + ")";
+                    return false;
+                }
+
+                Map.navigation.SetTarget(list[pick - 1]);
+                info = "#" + pick + " of " + list.Count;
+                return true;
+            }
+            catch (Exception e)
+            {
+                info = e.Message;
+                return false;
+            }
         }
 
         public static SelectableObject GetTarget()

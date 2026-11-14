@@ -227,6 +227,10 @@ namespace SFSVizzyMod
 
         private Block currentBlock;
 
+        // 给调试面板用：脚本里 set 的变量，和正在执行的那块积木
+        public IDictionary<string, double> UserVars { get { return userVars; } }
+        public int CurrentBlockId { get { return currentBlock != null ? currentBlock.id : 0; } }
+
         private void Fail(string msg)
         {
             Print("FAILED: " + msg);
@@ -690,6 +694,10 @@ namespace SFSVizzyMod
 
                 case Kinds.Warp:
                     WarpBlock(b);
+                    break;
+
+                case Kinds.Target:
+                    TargetBlock(b);
                     break;
 
                 case Kinds.Call:
@@ -1272,6 +1280,25 @@ namespace SFSVizzyMod
             yield return RunList(f.blocks ?? new List<Block>(), ctx);
             callDepth--;
             if (!IsRunning) yield break;
+        }
+
+        private void TargetBlock(Block b)
+        {
+            Rocket r = WorldVars.GetPlayerRocket();
+            if (r == null) { Fail("target: no rocket"); return; }
+
+            string mode = string.IsNullOrEmpty(b.dir) ? "nearest" : b.dir.ToLowerInvariant();
+            int idx = 1;
+            if (mode == "rocket")
+            {
+                double v = Eval(string.IsNullOrEmpty(b.a) ? "1" : b.a);
+                if (!IsRunning) return;
+                idx = (int)Math.Round(v);
+            }
+
+            string info;
+            if (WorldVars.SetTarget(mode, idx, r, out info)) Print("TARGET: " + mode + " -> " + info);
+            else Fail("target " + mode + ": " + info);
         }
 
         private void WarpBlock(Block b)

@@ -290,6 +290,18 @@ namespace SFSVizzyMod
                     try { o["planet"] = (string)r.location.planet.Value.DisplayName; }
                     catch (Exception) { o["planet"] = "?"; }
                 }
+
+                // 调试面板：用户变量 + 当前执行到哪块积木
+                if (runner != null && runner.IsRunning)
+                {
+                    JObject uv = new JObject();
+                    foreach (KeyValuePair<string, double> kv in runner.UserVars)
+                    {
+                        if (double.IsFinite(kv.Value)) uv[kv.Key] = Math.Round(kv.Value, 4);
+                    }
+                    o["uvars"] = uv;
+                    o["blockId"] = runner.CurrentBlockId;
+                }
             }
             catch (Exception)
             {

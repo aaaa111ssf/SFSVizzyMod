@@ -307,3 +307,29 @@ H 键编号
 
 日志区
   可选中复制（COPY）、按关键字过滤、清空（CLR）。
+
+
+附：导航与轨道数据（2026-11-14）
+
+target nearest|planet|rocket N|clear
+  作用：用积木设地图目标，不用再去地图上点。
+  代码：target nearest      最近的友舰
+        target planet       当前星球
+        target rocket 2     第 2 近的船
+        target clear        清除目标
+
+到拱点的时间与距离（单位：秒 / 米）
+  TimeToApoapsis   TimeToPeriapsis
+  DistToApoapsis   DistToPeriapsis
+  用法：wait until TimeToApoapsis < 30  然后 burn dv ...
+  注意：逃离轨道没有远拱点，TimeToApoapsis 返回 1e9 而不是 0。
+
+世界状态
+  WorldTime        游戏时间（秒）
+  TimewarpIndex    当前加速档位
+  RocketCount      场上火箭数量
+
+调试面板
+  左下 Variables 会显示脚本里 set 的变量，边跑边更新。
+  正在执行的那块积木会描蓝框。
+  遥测条多了 T-AP / T-PE 两个到拱点倒计时。

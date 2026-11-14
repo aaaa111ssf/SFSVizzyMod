@@ -237,6 +237,11 @@
         font-size:11px;line-height:1.55;color:var(--text)}
   .console{padding:6px 8px;overflow:auto;height:84px;user-select:text;cursor:text;
            font-size:11px;line-height:1.55;color:var(--text)}
+  .var-row{display:flex;justify-content:space-between;gap:8px}
+  .var-name{color:var(--muted2)}
+  .var-val{color:var(--text);font-weight:700}
+  .var-empty{color:var(--muted)}
+  .block.run{outline:2px solid var(--accent);outline-offset:2px}
   .console div{padding:1px 0}
   .console .ts{color:var(--muted);margin-right:8px}
   .console .ok{color:var(--ok)}
@@ -440,6 +445,7 @@ const KIND_COLOR = {
   turn: "#c06a2e",
   turn_to: "#a85826",
   turn_target: "#8f5a2a",
+  target: "#2f6f6a",
   stage: "#a8823c",
   engine: "#8a5a2b",
   parachute: "#a84b2c",
@@ -496,6 +502,7 @@ function newBlock(kind) {
     case "turn": b.a = "15"; b.dir = "left"; b.b = ""; break;
     case "turn_to": b.a = "0"; b.dir = "deg"; b.b = ""; break;
     case "turn_target": b.a = "0"; b.dir = "target"; b.b = ""; break;
+    case "target": b.dir = "nearest"; b.a = "1"; break;
     case "dialog": b.title = "Notice"; b.a = "Hello {planet}"; b.dir = "message"; b.var = "answer"; b.b = "0"; break;
     case "repeat": b.a = "5"; break;
     case "fail": b.a = "Program failed"; break;
@@ -609,6 +616,7 @@ function cleanProgram(p) {
     }
     if (b.kind === "hold") o.dir = b.dir || "vspeed";
     if (b.kind === "burn") o.dir = b.dir || "prograde";
+    if (b.kind === "target") o.dir = b.dir || "nearest";
     if (b.kind === "rcs_move") o.dir = b.dir || "up";
     if (b.kind === "dialog") {
       o.dir = b.dir || "message";
@@ -1005,6 +1013,13 @@ function renderBlock(list, index, path, parent) {
     case "random":
       row.appendChild(field(b, "a", 80, "value"));
       break;
+    case "target":
+      row.appendChild(choiceSelect(b, [["nearest", "nearest"], ["planet", "planet"], ["rocket", "rocket"], ["clear", "clear"]]));
+      if (b.dir === "rocket") {
+        row.appendChild(el("span", "dim", "#"));
+        row.appendChild(field(b, "a", 28, "1"));
+      }
+      break;
     case "warp":
       row.appendChild(field(b, "a", 40, "4"));
       row.appendChild(el("span", "dim", "0 = off"));
@@ -1339,6 +1354,7 @@ const PALETTE_GROUPS = [
     ["turn", "Turn Left / Right"],
     ["turn_to", "Turn To"],
     ["turn_target", "Turn to Target"],
+    ["target", "Set Target"],
     ["stage", "Stage"],
     ["engine", "Engine On / Off"],
     ["parachute", "Parachute"],
@@ -1450,7 +1466,9 @@ const TELEM_ROWS = [
   { key: "TWR", label: "TWR", fmt: (v) => v.toFixed(2) },
   { key: "MaxTWR", label: "MAX TWR", fmt: (v) => v.toFixed(2) },
   { key: "Fuel", label: "FUEL", bar: true, fmt: (v) => Math.round(v * 100) + "%" },
+  { key: "TimeToApoapsis", label: "T-AP", fmt: fmtDuration },
   { key: "Apoapsis", label: "APOAPSIS", fmt: fmtDistance },
+  { key: "TimeToPeriapsis", label: "T-PE", fmt: fmtDuration },
   { key: "Periapsis", label: "PERIAPSIS", fmt: fmtDistance },
   { key: "Eccentricity", label: "ECC", fmt: (v) => v.toFixed(3) },
   { key: "Heading", label: "HEADING", fmt: (v) => v.toFixed(1) + "°" },
@@ -1897,6 +1915,48 @@ function applyProgram(p) {
 
 let hasRocket = false;
 
+// 秒数换成 1h02m / 3m05s / 42s，看不出来的时候给大数标记
+// 脚本里 set 的变量，边跑边看
+function renderUserVars(uv) {
+  const box = document.getElementById("vars");
+  if (!box) return;
+  const keys = Object.keys(uv || {}).sort();
+  if (!keys.length) {
+    box.innerHTML = "";
+    box.appendChild(el("div", "var-empty", connected ? (running ? "no variables set yet" : "run a program to see variables") : "not connected"));
+    return;
+  }
+  box.innerHTML = "";
+  for (const k of keys) {
+    const row = el("div", "var-row");
+    row.appendChild(el("span", "var-name", k));
+    const v = uv[k];
+    row.appendChild(el("span", "var-val", Math.abs(v) >= 1000 ? v.toFixed(0) : String(Math.round(v * 1000) / 1000)));
+    box.appendChild(row);
+  }
+}
+
+// 高亮正在执行的那块积木
+let lastBlockEl = null;
+function markRunningBlock(id) {
+  if (lastBlockEl) { lastBlockEl.classList.remove("run"); lastBlockEl = null; }
+  if (!id) return;
+  const row = document.querySelector('.block[data-id="' + id + '"]');
+  if (!row) return;
+  row.classList.add("run");
+  lastBlockEl = row;
+}
+
+function fmtDuration(v) {
+  if (!isFinite(v)) return "--";
+  if (v >= 1e8) return "none";
+  if (v < 0) return "--";
+  const t = Math.round(v);
+  if (t < 60) return t + "s";
+  if (t < 3600) return Math.floor(t / 60) + "m" + String(t % 60).padStart(2, "0") + "s";
+  return Math.floor(t / 3600) + "h" + String(Math.floor((t % 3600) / 60)).padStart(2, "0") + "m";
+}
+
 function onState(s) {
   hasRocket = !!s.rocket;
   running = !!s.running;
@@ -1914,6 +1974,9 @@ function onState(s) {
       if (row.bar) telemBars[row.key].style.width = "0%";
     }
   }
+
+  renderUserVars(s.uvars);
+  markRunningBlock(s.running ? s.blockId : 0);
 
   const status = document.getElementById("status");
   if (!hasRocket) status.textContent = "connected · no rocket in flight";
@@ -2067,6 +2130,11 @@ function programToCode() {
       case "match": out.push(pad + "match velocity " + (b.a || "1")); break;
       case "rcs_move": out.push(pad + "rcs " + (b.dir || "up") + " " + (b.a || "2")); break;
       case "call": out.push(pad + "call " + (b.a || "my_func")); break;
+      case "target": {
+        const d = b.dir || "nearest";
+        out.push(pad + "target " + d + (d === "rocket" ? " " + (b.a || "1") : ""));
+        break;
+      }
       case "warp": out.push(pad + "warp " + (b.a || "0")); break;
       case "hold": out.push(pad + "hold " + (b.dir || "vspeed") + " " + (b.a || "0") + " " + (b.b || "10")); break;
       case "wheel": {
@@ -2313,6 +2381,9 @@ function parseCode(text) {
     if ((m = line.match(/^throttle\s+off$/i))) { add(newBlock("throttle_off")); continue; }
     if ((m = line.match(/^rcs\s+on$/i))) { add(newBlock("rcs_on")); continue; }
     if ((m = line.match(/^rcs\s+off$/i))) { add(newBlock("rcs_off")); continue; }
+    if ((m = line.match(/^target\s+(nearest|planet|clear|rocket)(?:\s+(\S+))?$/i))) {
+      const b = newBlock("target"); b.dir = m[1].toLowerCase(); b.a = m[2] || "1"; add(b); continue;
+    }
     if ((m = line.match(/^turn\s+to\s+(.+?)(?:\s+in\s+(.+))?$/i))) {
       const raw = m[1].trim();
       const arg = raw.toLowerCase();
@@ -2471,6 +2542,7 @@ end</pre>
 <tr><td><code>match velocity tol N</code></td><td>Kill the relative velocity to the map target down to N m/s.</td></tr>
 <tr><td><code>rcs up/down/left/right S</code></td><td>RCS translation for S seconds, then zeroed.</td></tr>
 <tr><td><code>warp N</code></td><td>Time warp up to step N; <code>warp 0</code> turns it off.</td></tr>
+<tr><td><code>target nearest|planet|rocket N|clear</code></td><td>Set the map target yourself instead of clicking it: nearest other ship, the current planet, the N-th closest ship, or clear it.</td></tr>
 <tr><td><code>stage [N]</code></td><td>Activate the next stage, or stage N (1 = next).</td></tr>
 <tr><td><code>engine all|2 on|off</code></td><td>Switch engines. 1-based order; <code>all</code> = every engine,
   <code>stage 1</code> = engines in stage 1.</td></tr>
@@ -2508,10 +2580,14 @@ SFS is 2D, so there is no orbital inclination: "launch to orbit" uses a target a
 <tr><td>Flight</td><td><code>Throttle</code> (0..1), <code>Altitude</code> (ASL), <code>AltitudeAGL</code> (true height),
   <code>Speed</code>, <code>VerticalSpeed</code>, <code>HorizontalSpeed</code>, <code>Mass</code>, <code>TWR</code>, <code>MaxTWR</code></td></tr>
 <tr><td>Fuel</td><td><code>Fuel</code> (0..1), <code>FuelAmount</code>, <code>FuelCapacity</code></td></tr>
-<tr><td>Orbit</td><td><code>Apoapsis</code>, <code>Periapsis</code>, <code>Eccentricity</code>, <code>Escaping</code> (0/1)</td></tr>
+<tr><td>Orbit</td><td><code>Apoapsis</code>, <code>Periapsis</code>, <code>Eccentricity</code>, <code>Escaping</code> (0/1),
+  <code>TimeToApoapsis</code>, <code>TimeToPeriapsis</code> (s), <code>DistToApoapsis</code>, <code>DistToPeriapsis</code> (m)</td></tr>
+<tr><td>World</td><td><code>WorldTime</code>, <code>TimewarpIndex</code>, <code>RocketCount</code></td></tr>
 <tr><td>Attitude</td><td><code>Heading</code> (-180..180, 0 = zenith), <code>AngularVel</code> (deg/s)</td></tr>
 <tr><td>Environment</td><td><code>Gravity</code>, <code>AirDensity</code>, <code>DynamicPressure</code>, <code>AtmosphereTop</code></td></tr>
 </table>
+<p>On an escape trajectory there is no next apoapsis, so <code>TimeToApoapsis</code> reports 1e9 instead of 0.
+Watch out: <code>wait until TimeToApoapsis &lt; 30</code> then never fires, which is what you want.</p>
 
 <h2>Expressions</h2>
 <p><code>+ - * / % ^</code>, parentheses, comparisons (true=1 / false=0), logical
