@@ -22,6 +22,7 @@ Three parts, nothing exotic:
 - **Not just on/off switches** — `hold altitude` and `hold vspeed` are PID loops with hover feedforward, `burn dv` stops on speed change, `warp` goes through the game's own time warp checks.
 - **Parts, not only engines** — landing legs and solar panels (`deploy`), wheels with drive and steering, RCS translation, parachutes.
 - **Errors point at the block** — a failed program shows a red bar and outlines the block that broke, instead of one line of text.
+- **Watch it run** — the block being executed is highlighted, variables update live in the side pane, and pause / step let you walk through one block at a time.
 - **Two builds** — English and Chinese UI, same behaviour, install one.
 
 ### Install
@@ -142,6 +143,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 - **不只是开关量** —— `hold altitude` 和 `hold vspeed` 是带悬停前馈的 PID `burn dv` 按速度差停火 `warp` 走游戏自己的加速检查
 - **部件不止发动机** —— 着陆腿和太阳能板能展开收起 轮子能驱动和转向 RCS 能平移 降落伞能开能切
 - **报错能定位** —— 程序失败时顶部弹红色错误条 同时把出错那块积木描红并滚到眼前 不是只丢一行字
+- **能看到它在跑** —— 正在执行的积木会描蓝框 变量在侧栏实时刷新 还能暂停和单步 一块一块地走
 - **两个版本** —— 英文版和中文版界面 行为一样 装一个
 
 ### 安装

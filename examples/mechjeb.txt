@@ -36,10 +36,10 @@ on start
     end
     log "mj1: apoapsis = {Apoapsis}"
 
-    # fly level for a while so the periapsis climbs too
+    # fly level until the periapsis climbs out of the atmosphere
     turn to 90 in 3
     set throttle to 0.25
-    wait 8
+    wait until TimeToPeriapsis > 200
     log "mj1: coasting ap={Apoapsis} pe={Periapsis}"
 
     # circularize
@@ -53,6 +53,9 @@ on start
     if Apoapsis < 2000
       fail "mj2: not in orbit yet, launch first"
     end
+    log "mj2: waiting for apoapsis, {TimeToApoapsis} s left"
+    # apoapsis is the cheapest place to raise the periapsis
+    wait until TimeToApoapsis < 5
     log "mj2: circularize, start ap={Apoapsis} pe={Periapsis}"
     circularize tol
     log "mj2: done ap={Apoapsis} pe={Periapsis}"
@@ -69,8 +72,13 @@ on start
 
     # both conditions in one line: still have tries AND not there yet
     while tries < maxTries and abs(Apoapsis - targetAp) > tol
-      # wait until we are near an apsis before burning
-      wait until abs(VerticalSpeed) < 3
+      # burn at the opposite apsis: to raise the apoapsis burn at
+      # periapsis, to raise the periapsis burn at apoapsis
+      if targetAp > Apoapsis
+        wait until TimeToPeriapsis < 3
+      else
+        wait until TimeToApoapsis < 3
+      end
 
       if Altitude < (Apoapsis + Periapsis) / 2
         # near periapsis: change the apoapsis

@@ -227,6 +227,14 @@ namespace SFSVizzyMod
 
         private Block currentBlock;
 
+        // 调试：暂停后每块积木前都会卡住，单步只放行一块
+        private bool paused;
+        private bool stepOnce;
+
+        public bool Paused { get { return paused; } }
+        public void SetPaused(bool value) { paused = value; if (!value) stepOnce = false; }
+        public void StepOnce() { stepOnce = true; }
+
         // 给调试面板用：脚本里 set 的变量，和正在执行的那块积木
         public IDictionary<string, double> UserVars { get { return userVars; } }
         public int CurrentBlockId { get { return currentBlock != null ? currentBlock.id : 0; } }
@@ -520,6 +528,11 @@ namespace SFSVizzyMod
 
         private IEnumerator RunBlock(Block b, RunContext ctx)
         {
+            // 暂停时停在下一块积木前；单步只放行一块
+            while (IsRunning && paused && !stepOnce) yield return null;
+            if (stepOnce) stepOnce = false;
+            if (!IsRunning) yield break;
+
             currentBlock = b;
             if (b == null || string.IsNullOrEmpty(b.kind)) yield break;
 

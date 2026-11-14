@@ -289,6 +289,8 @@
   </div>
   <button class="btn primary" id="btnRun">Run</button>
   <button class="btn" id="btnStop">Stop</button>
+  <button class="btn" id="btnPause" title="pause / resume" disabled>❚❚</button>
+  <button class="btn" id="btnStep" title="run one block, then pause" disabled>▶❙</button>
   <button class="btn" id="btnTogglePalette" title="show / hide block palette" hidden>▤</button>
   <button class="btn" id="btnToggleBottom" title="show / hide telemetry">▾</button>
   <button class="btn" id="btnHelp" title="help / documentation" hidden>?</button>
@@ -480,6 +482,7 @@ let paletteDrag = null;      // 从左侧面板拖出来的新积木 { kind }
 let connected = false;
 let running = false;
 let pendingFromGame = false;
+let paused = false;
 let serverProgram = null;
 
 const LS_KEY = "sfsvizzy.program.v1";
@@ -1972,6 +1975,8 @@ function onState(s) {
   running = !!s.running;
   btnStop.disabled = !running;
   btnRun.disabled = running || !connected;
+  document.getElementById("btnPause").disabled = !running;
+  document.getElementById("btnStep").disabled = !running || !paused;
 
   for (const row of TELEM_ROWS) {
     const valueEl = telemValues[row.key];
@@ -1984,6 +1989,10 @@ function onState(s) {
       if (row.bar) telemBars[row.key].style.width = "0%";
     }
   }
+
+  paused = !!s.paused;
+  const bp = document.getElementById("btnPause");
+  if (bp) { bp.textContent = paused ? "▶" : "❚❚"; bp.title = paused ? "resume" : "pause"; }
 
   renderUserVars(s.uvars);
   markRunningBlock(s.running ? s.blockId : 0);
@@ -2045,6 +2054,14 @@ btnRun.addEventListener("click", () => {
 
 btnStop.addEventListener("click", () => {
   send({ type: "stop" });
+});
+
+document.getElementById("btnPause").addEventListener("click", () => {
+  send({ type: paused ? "resume" : "pause" });
+});
+
+document.getElementById("btnStep").addEventListener("click", () => {
+  send({ type: "step" });
 });
 
 document.getElementById("btnSave").addEventListener("click", () => {
@@ -2614,6 +2631,11 @@ SFS is 2D, so there is no orbital inclination: "launch to orbit" uses a target a
 </table>
 <p>On an escape trajectory there is no next apoapsis, so <code>TimeToApoapsis</code> reports 1e9 instead of 0.
 Watch out: <code>wait until TimeToApoapsis &lt; 30</code> then never fires, which is what you want.</p>
+
+<h2>Debugging</h2>
+<p>The Variables pane on the left shows every variable your program sets, updated live while it runs.
+The block being executed gets a highlight, so you can see where it is.
+<code>&#10074;&#10074;</code> pauses, <code>&#9654;&#10073;</code> runs one block and pauses again, and the same button turns back into resume.</p>
 
 <h2>Expressions</h2>
 <p><code>+ - * / % ^</code>, parentheses, comparisons (true=1 / false=0), logical

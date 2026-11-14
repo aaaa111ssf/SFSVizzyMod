@@ -231,6 +231,18 @@ namespace SFSVizzyMod
                         runner.StopProgram("stopped from browser");
                         break;
 
+                    case "pause":
+                        if (runner != null) runner.SetPaused(true);
+                        break;
+
+                    case "resume":
+                        if (runner != null) runner.SetPaused(false);
+                        break;
+
+                    case "step":
+                        if (runner != null) runner.StepOnce();
+                        break;
+
                     case "save":
                     {
                         ProgramData p = msg["program"]?.ToObject<ProgramData>();
@@ -268,6 +280,7 @@ namespace SFSVizzyMod
             {
                 ["type"] = "state",
                 ["running"] = runner != null && runner.IsRunning,
+                ["paused"] = runner != null && runner.Paused,
                 ["t"] = WorldTime.main != null ? WorldTime.main.worldTime : 0.0
             };
 
