@@ -13,3 +13,5 @@ tools/__pycache__/
 .vs/
 
 tools/
+
+native/build/

@@ -215,6 +215,8 @@ namespace SFSVizzyMod
                     case "run":
                     {
                         ProgramData p = msg["program"]?.ToObject<ProgramData>();
+                        // 没带程序就重跑上一份，原生客户端靠这条才能直接按 Run
+                        if (p == null) p = lastProgram;
                         if (p == null) { Log("Run failed: empty program"); break; }
                         pendingRunAt = -1f;
                         lastProgram = p;
