@@ -1,0 +1,131 @@
+# ===== reliable powered landing / booster recovery =====
+# The point of this one is that it never trusts a fixed table. Every cycle it
+# recomputes how fast it may still fall from the current altitude with the
+# thrust it has LEFT, and simply follows that curve down. Burning fuel makes
+# the rocket lighter, the curve tightens by itself, and nothing needs retuning.
+#
+#   mode 1  land from wherever you are (already descending)
+#   mode 2  boostback to the map target, then land   (needs a map target)
+#   mode 3  atmospheric entry, then land
+#
+# Units note: TWR is thrust / mass and it is a real g-load, so the acceleration
+# available is TWR * 9.8, which is the constant SFS uses to turn thrust into
+# force. Net deceleration is that minus local gravity.
+
+func boostback
+  if HasTarget < 1
+    fail "rec: pick a map target first (the pad, or a ship parked on it)"
+  end
+  log "rec: boostback, target {TargetDistance} m away"
+
+  # pulse the retro burn and watch the predicted touchdown. Stop when it is
+  # close, or as soon as more burning starts pushing it away again
+  set prev = 999999999
+  set tries = 0
+  while tries < 25
+    turn to retrograde in 1.5
+    set throttle to 0.7
+    wait 2
+    throttle off
+    wait 1.5
+
+    if TimeToImpact < 999999999
+      log "rec: touchdown in {TimeToImpact}s, off by {ImpactToTarget} m"
+      if ImpactToTarget < tol
+        break
+      end
+      if ImpactToTarget > prev
+        log "rec: overshot, best was {prev} m"
+        break
+      end
+      set prev = ImpactToTarget
+    end
+    set tries = tries + 1
+  end
+end
+
+func entry
+  # engines towards the airflow, that is how a booster survives reentry
+  turn to retrograde in 2
+  wait until AltitudeAGL < 25000
+  log "rec: entering air, vs={VerticalSpeed} q={DynamicPressure}"
+  wait until VerticalSpeed > -180
+  log "rec: slowed down, vs={VerticalSpeed} q={DynamicPressure}"
+end
+
+func land
+  set a_net = MaxTWR * 9.8 - Gravity
+  log "rec: landing from agl={AltitudeAGL} vs={VerticalSpeed} twr={MaxTWR} decel={a_net}"
+  if a_net < 0.5
+    fail "rec: not enough thrust to stop (MaxTWR={MaxTWR}, gravity={Gravity})"
+  end
+
+  # sideways speed first, otherwise it tips over on touchdown
+  set n = 0
+  while HorizontalSpeed > 4 and n < 15
+    turn to retrograde in 0.6
+    set throttle to 0.8
+    wait 0.8
+    throttle off
+    set n = n + 1
+  end
+  log "rec: sideways {HorizontalSpeed} m/s after {n} bursts"
+
+  # legs early, they take a moment and a folded leg snaps on landing
+  deploy all
+  turn to up in 1.2
+
+  # follow the safe speed curve. The curve is the speed from which the current
+  # thrust can still stop you before h_final, times a safety margin
+  while AltitudeAGL > h_final
+    set a_net = MaxTWR * 9.8 - Gravity
+    if a_net < 0.5
+      fail "rec: thrust lost at agl={AltitudeAGL}, nothing to land with"
+    end
+    set h = AltitudeAGL - h_final
+    if h < 1
+      set h = 1
+    end
+    set v_safe = 0 - margin * sqrt(2 * a_net * h)
+    # never ask for an absurd target, and never stop above the last metres
+    set v_t = clamp(v_safe, 0 - 400, 0 - 2)
+    hold vspeed v_t 0.4
+  end
+
+  # last stretch at a constant crawl
+  while AltitudeAGL > 2
+    hold vspeed v_touch 0.5
+  end
+  set throttle to 0
+  log "rec: down, vs={VerticalSpeed} agl={AltitudeAGL}"
+end
+
+on start
+  set mode = 1
+  set h_final = 15       # hand over from the curve to the crawl at this height
+  set v_touch = 0 - 1.5  # touchdown speed, m/s
+  set margin = 0.85      # safety factor on the stopping distance, lower = safer
+  set tol = 3000         # boostback miss tolerance, m
+
+  if mode == 0
+    log "rec: idle"
+  end
+
+  if mode == 1
+    call land
+  end
+
+  if mode == 2
+    call boostback
+    call land
+  end
+
+  if mode == 3
+    call entry
+    call land
+  end
+end
+
+on landed
+  log "rec: touchdown, vs={VerticalSpeed}"
+end

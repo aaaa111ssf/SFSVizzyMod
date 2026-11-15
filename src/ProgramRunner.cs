@@ -1667,7 +1667,10 @@ namespace SFSVizzyMod
                 double deriv = -(vs - prev) / dt;
                 prev = vs;
 
-                double ff = maxTwr > 0.05 ? 1.0 / maxTwr : 0.0;
+                // 悬停油门要按当地重力算：TWR 是推力/质量，加速度是 TWR*9.8
+                double gravity = vars.ContainsKey("Gravity") ? vars["Gravity"] : 9.8;
+                if (!(gravity > 0.0)) gravity = 9.8;
+                double ff = maxTwr > 0.05 ? (gravity / 9.8) / maxTwr : 0.0;
                 double u = ff + kp * err + ki * integral + kd * deriv;
                 u = Math.Max(0.0, Math.Min(1.0, u));
 

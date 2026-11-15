@@ -76,6 +76,18 @@ demo10_two_vessels.txt      two vessels at once
   Note: variables are global, so the two halves must not use the same names
 
 --------------------------------------------------------------------
+recovery_landing.txt   reliable powered landing / booster recovery
+  Where: already descending; mode 2 also wants a map target on the pad
+  Modes: 1 land  2 boostback then land  3 atmospheric entry then land
+  Shows: the descent follows a safe speed curve that is recomputed every
+         cycle from the thrust that is still there, instead of burning at a
+         fixed altitude. Heavier fuel load, lighter after the burn, it does
+         not matter, the curve moves with it. Legs go out early, sideways
+         speed is cleared first, the last metres are a constant crawl.
+  Watch: "rec:" lines; the off-by distance during boostback, then a smooth
+         slowdown with no hovering and no last second panic
+  Tune: margin (safety factor), h_final (hand over to the crawl), v_touch
+
 guidance_ascent.txt   closed loop ascent guidance
   Where: on the pad
   Shows: no pitch table at all. Every cycle it reads the apoapsis error,
