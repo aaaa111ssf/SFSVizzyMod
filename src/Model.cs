@@ -10,6 +10,8 @@ namespace SFSVizzyMod
         public const string Wait = "wait";              // a = 时长表达式（秒，游戏时间）
         public const string WaitUntil = "wait_until";   // a/op/b = 条件，条件为真才继续
         public const string SetThrottle = "set_throttle"; // a = 油门表达式 (0..1)
+        public const string Throttle = "throttle";        // dir = on/off，老的 throttle_on/off 还留着兼容存档
+        public const string Rcs = "rcs";                  // dir = on/off
         public const string ThrottleOn = "throttle_on";
         public const string ThrottleOff = "throttle_off";
         public const string RcsOn = "rcs_on";

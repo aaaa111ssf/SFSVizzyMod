@@ -16,6 +16,26 @@ namespace SFSVizzyMod
             return PlayerController.main.player.Value as Rocket;
         }
 
+        // 发动机能不能真喷：看燃料流量状态。没接油箱的（sources 为空）当它能喷
+        private static bool HasFuel(EngineModule e)
+        {
+            try
+            {
+                FlowModule flow = e.source;
+                if (flow == null || flow.sources == null || flow.sources.Length == 0) return true;
+                for (int i = 0; i < flow.sources.Length; i++)
+                {
+                    FlowModule.FlowState st = flow.sources[i].state.Value;
+                    if (st != FlowModule.FlowState.CanFlow && st != FlowModule.FlowState.IsFlowing) return false;
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                return true;   // 状态还没初始化时别误判成没油
+            }
+        }
+
         // 变量表：高度/速度用米，油门 0..1，角度用度，TWR 无量纲。
         public static void Fill(Rocket r, Dictionary<string, double> vars)
         {
@@ -24,17 +44,20 @@ namespace SFSVizzyMod
             double mass = r.mass.GetMass();
 
             // 推力统计：只算已激活(engineOn)的发动机 —— 千万别把二级也点着
+            // 还要看有没有油：烧干后 thrust 是额定值不会变，只能靠流量状态判断
             double active = 0.0, available = 0.0;
+            int enginesOn = 0, enginesLit = 0;
             EngineModule[] engines = r.partHolder.GetModules<EngineModule>();
             for (int i = 0; i < engines.Length; i++)
             {
                 EngineModule e = engines[i];
-                if (e.engineOn.Value)
-                {
-                    double t = e.thrust.Value;
-                    available += t;
-                    active += t * e.throttle_Out.Value;
-                }
+                if (!e.engineOn.Value) continue;
+                enginesOn++;
+                if (!HasFuel(e)) continue;          // 干烧：推力按 0 算
+                enginesLit++;
+                double t = e.thrust.Value;
+                available += t;
+                active += t * e.throttle_Out.Value;
             }
 
             // 速度分解：与 Location.VerticalVelocity 相同的旋转取 y / x
@@ -52,6 +75,9 @@ namespace SFSVizzyMod
             vars["Mass"] = mass;
             vars["TWR"] = mass > 0.0 ? active / mass : 0.0;
             vars["MaxTWR"] = mass > 0.0 ? available / mass : 0.0;
+            // 级间判断用这两个：LitEngines 掉到 0 就是这一级烧干了
+            vars["Engines"] = enginesOn;
+            vars["LitEngines"] = enginesLit;
 
             // 姿态：rb2d.rotation 是世界角，减去当地天顶的世界角得到相对姿态；（重发射 / 绕到行星另一侧时读数连续，不会跳）
             try

@@ -611,6 +611,26 @@ namespace SFSVizzyMod
                     break;
                 }
 
+                case Kinds.Throttle:
+                {
+                    Rocket r = Rb(ctx);
+                    if (r == null) { Fail("throttle: no rocket"); yield break; }
+                    bool on = !string.Equals(b.dir, "off", StringComparison.OrdinalIgnoreCase);
+                    r.throttle.throttleOn.Value = on;
+                    Print("THROTTLE: " + (on ? "on" : "off"));
+                    break;
+                }
+
+                case Kinds.Rcs:
+                {
+                    Rocket r = Rb(ctx);
+                    if (r == null) { Fail("rcs: no rocket"); yield break; }
+                    bool on = !string.Equals(b.dir, "off", StringComparison.OrdinalIgnoreCase);
+                    r.arrowkeys.rcs.Value = on;
+                    Print("RCS: " + (on ? "on" : "off"));
+                    break;
+                }
+
                 case Kinds.ThrottleOn:
                 {
                     Rocket r = Rb(ctx);
@@ -1029,7 +1049,16 @@ namespace SFSVizzyMod
             return order;
         }
 
-        // 选择器：空/all = 全部；数字 = 第 N 个；stage N = 第 N 级里的全部
+        // 从 start 开始是不是全是数字
+        private static bool AllDigits(string s, int start)
+        {
+            if (s.Length <= start) return false;
+            for (int i = start; i < s.Length; i++)
+                if (!char.IsDigit(s[i])) return false;
+            return true;
+        }
+
+        // 选择器：空/all = 全部；数字 = 第 N 个；stage N = 第 N 级里的全部；名字 = 包含匹配
         private int[] SelectModules<T>(Rocket r, string selector) where T : MonoBehaviour
         {
             T[] mods = r.partHolder.GetModules<T>();
@@ -1057,8 +1086,13 @@ namespace SFSVizzyMod
                 return list.ToArray();
             }
 
+            // 面板上写的是 E1 / P2 / L1 / W3，这里也认，把前缀字母去掉再当编号
+            string numText = sel;
+            if (numText.Length >= 2 && char.IsLetter(numText[0]) && AllDigits(numText, 1))
+                numText = numText.Substring(1);
+
             int index;
-            if (int.TryParse(sel, out index) && index >= 1 && index <= ordered.Length)
+            if (int.TryParse(numText, out index) && index >= 1 && index <= ordered.Length)
                 return new[] { ordered[index - 1] };
 
             // 剩下的一律当零件名：带不带引号都行，包含匹配（模组零件主要靠这条）
@@ -1082,13 +1116,42 @@ namespace SFSVizzyMod
         {
             EngineModule[] engines = r.partHolder.GetModules<EngineModule>();
             int[] idx = SelectModules<EngineModule>(r, b.a);
-            if (idx.Length == 0) { Print("engine: no match for '" + (b.a ?? "all") + "' (skipped)"); return; }
+            if (idx.Length == 0)
+            {
+                Print("engine: no match for '" + (b.a ?? "all") + "' among " + engines.Length + " engines (skipped)");
+                return;
+            }
 
             bool on = !string.Equals(b.dir, "off", StringComparison.OrdinalIgnoreCase);
+            string names = "";
             for (int i = 0; i < idx.Length; i++)
-                engines[idx[i]].engineOn.Value = on;
+            {
+                EngineModule e = engines[idx[i]];
+                e.engineOn.Value = on;
+                string pn = PartNameOf(e);
+                if (pn.Length > 0) names += (names.Length > 0 ? ", " : "") + pn;
+            }
 
-            Print("ENGINE: " + (b.a ?? "all") + " -> " + (on ? "on" : "off") + " (" + idx.Length + ")");
+            Print("ENGINE: " + (b.a ?? "all") + " -> " + (on ? "on" : "off") + " (" + idx.Length + ")"
+                + (names.Length > 0 ? " " + names : ""));
+
+            // 只打开开关不动油门，看着就像没反应
+            if (on)
+            {
+                double th = 0.0;
+                try { th = r.throttle.output_Throttle.Value; } catch (Exception) { }
+                if (th < 0.01) Print("ENGINE: throttle is 0, add 'set throttle to 1' to actually burn");
+            }
+        }
+
+        private static string PartNameOf(Component c)
+        {
+            try
+            {
+                Part p = c != null ? c.GetComponent<Part>() : null;
+                return p != null && !string.IsNullOrEmpty(p.Name) ? p.Name : "";
+            }
+            catch (Exception) { return ""; }
         }
 
         private IEnumerator ParachuteBlock(RunContext ctx, Block b)

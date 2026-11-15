@@ -1,0 +1,165 @@
+# ===== SFS Vizzy mission autopilot (MechJeb style) =====
+# Pick a mode in ON START, then press RUN.
+#   mode 1  whole trip: pad -> orbit -> deorbit -> touchdown on the map target
+#   mode 2  liftoff only        3  circularize only
+#   mode 4  deorbit only        5  touchdown only
+#
+# mode 1 needs: a map target picked first (open the map, tap another ship).
+# Auto staging: when every lit engine runs dry the count drops to 0, the script
+# drops the stage and switches the new one on. No per-stage fuel needed.
+
+func liftoff
+  log "mj: liftoff, twr={TWR} fuel={Fuel}"
+  throttle on
+  set throttle to 1
+  wait until AltitudeAGL > 200
+  wait until LitEngines > 0
+
+  # gravity turn: 0 deg is straight up, 90 is horizontal. frac 0->1 gives 0->85
+  while Apoapsis < targetAp
+    if LitEngines < 1
+      # this stage is dry: drop it, then light whatever came next
+      stage
+      wait 1.5
+      engine all on
+      wait 1
+      log "mj: staged at {AltitudeAGL} m, engines={Engines}"
+    end
+    if Fuel < 0.01
+      fail "mj: out of fuel at {AltitudeAGL} m, ap={Apoapsis}"
+    end
+    set frac = clamp(AltitudeAGL / turnAlt, 0, 1)
+    turn to (85 * frac) in 0.5
+    set throttle to 1
+    wait 0.5
+  end
+
+  throttle off
+  log "mj: apoapsis {Apoapsis} m, engine off"
+end
+
+func orbit
+  if Apoapsis < 2000
+    fail "mj: no orbit yet, run liftoff first"
+  end
+  turn to 90 in 1
+  wait until TimeToApoapsis < 3
+  log "mj: circularizing at ap {Apoapsis}"
+  circularize tol
+  log "mj: orbit ap={Apoapsis} pe={Periapsis}"
+end
+
+func deorbit
+  if Apoapsis < 2000
+    fail "mj: no orbit to come down from"
+  end
+  if HasTarget < 1
+    fail "mj: pick a map target first, then run again"
+  end
+
+  log "mj: deorbit, target {TargetDistance} m away"
+  turn to retrograde in 2
+
+  # 1 drop the periapsis into the air first, so a touchdown exists to aim at
+  set throttle to 0.8
+  wait until Periapsis < 30000
+  throttle off
+  log "mj: pe={Periapsis} m, impact in {TimeToImpact}s, off by {ImpactToTarget} m"
+
+  # 2 fine tune in pulses. The predicted touchdown walks backwards as we burn,
+  # so stop as soon as it starts drifting away from the target again
+  set prev = 999999999
+  set tries = 0
+  while tries < 20
+    if TimeToImpact > 999999999
+      # still misses the ground entirely, keep going
+      set throttle to 0.4
+      wait 2
+      throttle off
+      wait 1
+    else
+      if ImpactToTarget < 15000
+        log "mj: close enough, {ImpactToTarget} m off"
+        break
+      end
+      if ImpactToTarget > prev
+        log "mj: overshot, best was {prev} m"
+        break
+      end
+      set prev = ImpactToTarget
+      set throttle to 0.35
+      wait 1.5
+      throttle off
+      wait 2
+    end
+    set tries = tries + 1
+  end
+  log "mj: deorbit done, impact in {TimeToImpact}s, {ImpactToTarget} m off"
+end
+
+func touchdown
+  deploy all
+  log "mj: legs out at {AltitudeAGL} m"
+
+  # with air the chute does most of the work, without air we land on thrust
+  if AtmosphereTop > 1000
+    wait until AltitudeAGL < 12000
+    parachute all deploy
+    log "mj: chute out at {AltitudeAGL} m, vs={VerticalSpeed}"
+    wait until AltitudeAGL < 900
+  end
+
+  if HorizontalSpeed > 10
+    turn to retrograde in 1
+    set throttle to 1
+    wait until HorizontalSpeed < 10
+    log "mj: sideways speed killed"
+  end
+
+  turn to up in 2
+  hold vspeed vs1 4
+  hold vspeed vs2 5
+  set throttle to 0
+  log "mj: down, vs={VerticalSpeed} agl={AltitudeAGL}"
+end
+
+on start
+  set mode = 1             # see the list at the top
+  set targetAp = 100000    # orbit altitude to aim for, m
+  set turnAlt = 45000      # altitude where the gravity turn reaches horizontal
+  set tol = 2000           # circularize tolerance, m
+  set vs1 = 0 - 15         # descent speed high up
+  set vs2 = 0 - 3          # descent speed on final
+
+  if mode == 0
+    log "mj: idle"
+  end
+
+  if mode == 1
+    call liftoff
+    call orbit
+    call deorbit
+    call touchdown
+    log "mj: mission done"
+  end
+
+  if mode == 2
+    call liftoff
+  end
+
+  if mode == 3
+    call orbit
+  end
+
+  if mode == 4
+    call deorbit
+  end
+
+  if mode == 5
+    call touchdown
+  end
+end
+
+on landed
+  log "mj: landed"
+end

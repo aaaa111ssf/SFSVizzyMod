@@ -423,6 +423,8 @@ const KIND_LABEL = {
   throttle_off: "throttle off",
   rcs_on: "RCS on",
   rcs_off: "RCS off",
+  throttle: "throttle",
+  rcs: "rcs",
   turn: "turn",
   turn_to: "turn to",
   stage: "stage",
@@ -443,6 +445,8 @@ const KIND_COLOR = {
   throttle_off: "#135c66",
   rcs_on: "#2a7f9e",
   rcs_off: "#236a86",
+  throttle: "#176b78",
+  rcs: "#2a7f9e",
   rcs_move: "#1b6b86",
   turn: "#c06a2e",
   turn_to: "#a85826",
@@ -510,6 +514,8 @@ function newBlock(kind) {
     case "target": b.dir = "nearest"; b.a = "1"; break;
     case "select": b.dir = "player"; b.a = "2"; b.b = "Booster"; break;
     case "hold_heading": b.dir = "prograde"; b.a = "0"; b.b = "10"; break;
+    case "throttle": b.dir = "on"; break;
+    case "rcs": b.dir = "on"; break;
     case "dialog": b.title = "Notice"; b.a = "Hello {planet}"; b.dir = "message"; b.var = "answer"; b.b = "0"; break;
     case "repeat": b.a = "5"; break;
     case "fail": b.a = "Program failed"; break;
@@ -622,6 +628,7 @@ function cleanProgram(p) {
       o.title = b.title || "2";
     }
     if (b.kind === "hold") o.dir = b.dir || "vspeed";
+    if (b.kind === "throttle" || b.kind === "rcs") o.dir = b.dir || "on";
     if (b.kind === "burn") o.dir = b.dir || "prograde";
     if (b.kind === "target") o.dir = b.dir || "nearest";
     if (b.kind === "select") o.dir = b.dir || "player";
@@ -991,6 +998,10 @@ function renderBlock(list, index, path, parent) {
       break;
     case "set_throttle":
       row.appendChild(field(b, "a", 112, "0.5"));
+      break;
+    case "throttle":
+    case "rcs":
+      row.appendChild(choiceSelect(b, [["on", "on"], ["off", "off"]]));
       break;
     case "turn":
       row.appendChild(turnDirSelect(b));
@@ -1366,10 +1377,8 @@ const PALETTE_GROUPS = [
     ["wait", "Wait (sec)"],
     ["wait_until", "Wait Until"],
     ["set_throttle", "Set Throttle"],
-    ["throttle_on", "Throttle On"],
-    ["throttle_off", "Throttle Off"],
-    ["rcs_on", "RCS On"],
-    ["rcs_off", "RCS Off"],
+    ["throttle", "Throttle on/off"],
+    ["rcs", "RCS on/off"],
     ["rcs_move", "RCS Move"],
     ["turn", "Turn Left / Right"],
     ["turn_to", "Turn To"],
@@ -2145,6 +2154,8 @@ function programToCode() {
       case "wait": out.push(pad + "wait " + (b.a || "0")); break;
       case "wait_until": out.push(pad + "wait until " + condText(b)); break;
       case "set_throttle": out.push(pad + "set throttle to " + (b.a || "0")); break;
+      case "throttle": out.push(pad + "throttle " + (b.dir || "on")); break;
+      case "rcs": out.push(pad + "rcs " + (b.dir || "on")); break;
       case "throttle_on": out.push(pad + "throttle on"); break;
       case "throttle_off": out.push(pad + "throttle off"); break;
       case "rcs_on": out.push(pad + "rcs on"); break;
@@ -2290,6 +2301,20 @@ function parseCode(text) {
 
   const err = (ln, msg) => { throw new Error("line " + (ln + 1) + ": " + msg); };
 
+  // 去掉行尾注释。引号里的不算，#2 这种编号也不算（后面紧跟数字就不是注释）
+  const stripComment = (s) => {
+    let inStr = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr || c !== "#") continue;
+      const next = s[i + 1] || "";
+      if (next >= "0" && next <= "9") continue;   // select rocket #2
+      return s.slice(0, i).trimEnd();
+    }
+    return s;
+  };
+
   const splitCond = (s, ln) => {
     let depth = 0;
     for (let i = 0; i < s.length; i++) {
@@ -2317,7 +2342,7 @@ function parseCode(text) {
   };
 
   for (let ln = 0; ln < lines.length; ln++) {
-    const line = lines[ln].trim();
+    const line = stripComment(lines[ln].trim());
     if (!line || line.startsWith("#") || line.startsWith("//")) continue;
     let m;
 
@@ -2431,10 +2456,9 @@ function parseCode(text) {
     if ((m = line.match(/^set\s+throttle\s+to\s+(.+)$/i))) {
       const b = newBlock("set_throttle"); b.a = m[1].trim(); add(b); continue;
     }
-    if ((m = line.match(/^throttle\s+on$/i))) { add(newBlock("throttle_on")); continue; }
-    if ((m = line.match(/^throttle\s+off$/i))) { add(newBlock("throttle_off")); continue; }
-    if ((m = line.match(/^rcs\s+on$/i))) { add(newBlock("rcs_on")); continue; }
-    if ((m = line.match(/^rcs\s+off$/i))) { add(newBlock("rcs_off")); continue; }
+    if ((m = line.match(/^(throttle|rcs)\s+(on|off)$/i))) {
+      const b = newBlock(m[1].toLowerCase()); b.dir = m[2].toLowerCase(); add(b); continue;
+    }
     if ((m = line.match(/^hold\s+heading\s+(prograde|retrograde|up|down|target|deg)(?:\s+(\S+))?(?:\s+(\S+))?$/i))) {
       const b = newBlock("hold_heading");
       b.dir = m[1].toLowerCase();
@@ -2617,10 +2641,11 @@ end</pre>
 <tr><td><code>stage [N]</code></td><td>Activate the next stage, or stage N (1 = next).</td></tr>
 <tr><td><code>engine all|2 on|off</code></td><td>Switch engines. 1-based order; <code>all</code> = every engine,
   <code>stage 1</code> = engines in stage 1.</td></tr>
-<tr><td>part selectors</td><td>Every part block takes the same four forms: <code>all</code>, a number,
-  <code>stage N</code>, or a part name in quotes such as <code>engine "Merlin 1D" on</code>. The name is a
-  case-insensitive substring, so <code>"merlin"</code> is enough. Press <b>H</b> in game: the panel now
-  lists the part name next to every number, and modded parts show up there too.</td></tr>
+<tr><td>part selectors</td><td>Every part block takes the same forms: <code>all</code>, a number,
+  <code>stage N</code>, the label from the H overlay (<code>E1</code> <code>P2</code> <code>L1</code>
+  <code>W1</code> <code>D1</code>), or a part name in quotes such as <code>engine "Merlin 1D" on</code>.
+  The name is a case-insensitive substring, so <code>"merlin"</code> is enough. Press <b>H</b> in game:
+  the panel lists the part name next to every number, and modded parts show up there too.</td></tr>
 <tr><td><code>parachute all|2|stage 1 deploy|cut</code></td><td>Deploy fully or cut chutes.
   Same selector rules; press <b>H</b> in game to see part numbers.</td></tr>
 <tr><td><code>set x = expr</code></td><td>User variable.</td></tr>

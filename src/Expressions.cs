@@ -10,6 +10,9 @@ namespace SFSVizzyMod
         public static double Eval(string source, IReadOnlyDictionary<string, double> vars)
         {
             if (string.IsNullOrWhiteSpace(source)) return 0.0;
+            // 表达式里不会有字符串，行尾 # 注释一律当没写（老存档里可能带着）
+            int hash = source.IndexOf('#');
+            if (hash >= 0) source = source.Substring(0, hash);
             return new Parser(source, vars).Parse();
         }
 

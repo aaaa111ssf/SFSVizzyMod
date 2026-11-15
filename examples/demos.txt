@@ -76,6 +76,17 @@ demo10_two_vessels.txt      two vessels at once
   Note: variables are global, so the two halves must not use the same names
 
 --------------------------------------------------------------------
+mj_mission.txt   whole-mission autopilot (the one to use now)
+  Where: on the pad, and pick a map target if you want mode 1
+  Modes: 1 whole trip (liftoff -> orbit -> deorbit -> touchdown)
+         2 liftoff   3 circularize   4 deorbit   5 touchdown
+  Shows: gravity turn that follows altitude, auto staging (when every lit
+         engine runs dry it drops the stage and switches the next one on),
+         circularize at apoapsis, deorbit pulsed against the predicted
+         touchdown, then chute or thrust landing depending on AtmosphereTop
+  Watch: "mj: staged at ..." lines during the climb, then the impact
+         countdown and the off-by distance closing in before touchdown
+
 mechjeb.txt   multi-mode autopilot (rewritten with the new blocks)
   Change mode in on start to pick a function:
     mode 0  do nothing
