@@ -24,7 +24,8 @@ namespace SFSVizzyMod
         private Coroutine routine;
         private ProgramData program;
         private readonly Dictionary<string, double> userVars = new Dictionary<string, double>();
-        private readonly Dictionary<string, double> vars = new Dictionary<string, double>();
+        // 只在还没有协程上下文时（启动时解析触发器阈值）用，平时一律走 CtxxVars(ctx)
+        private readonly Dictionary<string, double> startupVars = new Dictionary<string, double>();
         private bool hadRocket;
 
         // 正在执行的那条协程，Fail 靠它判断是不是"这条线的火箭已经没了"
@@ -123,7 +124,7 @@ namespace SFSVizzyMod
                 foreach (KeyValuePair<string, double> kv in data.variables)
                     userVars[kv.Key] = kv.Value;
 
-            vars.Clear();
+            startupVars.Clear();
             hadRocket = false;
             IsRunning = true;
 
@@ -890,7 +891,10 @@ namespace SFSVizzyMod
 
                 case Kinds.Fail:
                 {
-                    Fail(string.IsNullOrEmpty(b.a) ? "end failure block reached" : b.a);
+                    string raw = string.IsNullOrEmpty(b.a) ? "end failure block reached" : b.a;
+                    string rendered = Interpolate(ctx, raw);
+                    if (!IsRunning) yield break;   // 变量求值已经报过一次错，别再报一遍
+                    Fail(rendered);
                     yield break;
                 }
 
@@ -1190,7 +1194,14 @@ namespace SFSVizzyMod
             Print("PARACHUTE: " + (b.a ?? "all") + " -> " + (cut ? "cut" : "deploy") + " (" + idx.Length + ")");
         }
 
-        private double SpeedVar() { double v; return vars.TryGetValue("Speed", out v) ? v : 0.0; }
+        // 读一个世界变量，没有就给默认值。别再直接摸字典字段
+        private double V(RunContext ctx, string key, double fallback)
+        {
+            double v;
+            return CtxxVars(ctx).TryGetValue(key, out v) ? v : fallback;
+        }
+
+        private double SpeedVar(RunContext ctx) { return V(ctx, "Speed", 0.0); }
 
         private IEnumerator BurnBlock(RunContext ctx, Block b)
         {
@@ -1209,9 +1220,9 @@ namespace SFSVizzyMod
             yield return TurnTo(r, angle, 1.5);
             if (!IsRunning) yield break;
 
-            double startSpeed = SpeedVar();
+            double startSpeed = SpeedVar(ctx);
             double targetSpeed = retro ? Math.Max(0.0, startSpeed - dv) : startSpeed + dv;
-            double maxTwr = vars.ContainsKey("MaxTWR") ? vars["MaxTWR"] : 1.0;
+            double maxTwr = V(ctx, "MaxTWR", 1.0);
             double accel = Math.Max(0.2, maxTwr * 9.81);
             float timeout = (float)Math.Min(240.0, 15.0 + dv / accel * 4.0);
             float end = Time.time + timeout;
@@ -1222,7 +1233,7 @@ namespace SFSVizzyMod
             while (IsRunning && Time.time < end)
             {
                 RefreshVars(ctx);
-                double sp = SpeedVar();
+                double sp = SpeedVar(ctx);
                 if (!retro && sp >= targetSpeed) break;
                 if (retro && sp <= targetSpeed) break;
                 yield return null;
@@ -1245,7 +1256,7 @@ namespace SFSVizzyMod
 
             // 没入轨就圆化等于原地满油门烧到 2 km/s，先拦下来
             RefreshVars(ctx);
-            double apoNow = vars.ContainsKey("Apoapsis") ? vars["Apoapsis"] : 0.0;
+            double apoNow = V(ctx, "Apoapsis", 0.0);
             if (apoNow < 2000.0)
             {
                 Fail("circularize: not in orbit (apoapsis " + apoNow.ToString("0") + " m < 2000 m)");
@@ -1256,13 +1267,13 @@ namespace SFSVizzyMod
             for (int pass = 0; pass < 4 && IsRunning; pass++)
             {
                 RefreshVars(ctx);
-                double radius = vars.ContainsKey("Radius") ? vars["Radius"] : 0.0;
-                double planetR = vars.ContainsKey("PlanetRadius") ? vars["PlanetRadius"] : 0.0;
-                double g = vars.ContainsKey("Gravity") ? vars["Gravity"] : 0.0;
+                double radius = V(ctx, "Radius", 0.0);
+                double planetR = V(ctx, "PlanetRadius", 0.0);
+                double g = V(ctx, "Gravity", 0.0);
                 if (radius <= 0.0 || planetR <= 0.0 || g <= 0.0) { Fail("circularize: no planet data"); yield break; }
 
                 double vCirc = Math.Sqrt(g * planetR * planetR / radius);
-                double speed = SpeedVar();
+                double speed = SpeedVar(ctx);
                 double diff = vCirc - speed;
 
                 Print("CIRC: pass " + (pass + 1) + " v=" + speed.ToString("0.0")
@@ -1283,7 +1294,7 @@ namespace SFSVizzyMod
                 while (IsRunning && Time.time < end)
                 {
                     RefreshVars(ctx);
-                    double sp = SpeedVar();
+                    double sp = SpeedVar(ctx);
                     if ((prograde && sp >= vCirc) || (!prograde && sp <= vCirc)) break;
                     yield return null;
                 }
@@ -1642,9 +1653,9 @@ namespace SFSVizzyMod
                 // 发动机被关掉时 MaxTWR 会读成 0，先强制点火，否则 PID 永远起不来
                 r.throttle.throttleOn.Value = true;
 
-                double agl = vars.ContainsKey("AltitudeAGL") ? vars["AltitudeAGL"] : 0.0;
-                double vs = vars.ContainsKey("VerticalSpeed") ? vars["VerticalSpeed"] : 0.0;
-                double maxTwr = vars.ContainsKey("MaxTWR") ? vars["MaxTWR"] : 1.0;
+                double agl = V(ctx, "AltitudeAGL", 0.0);
+                double vs = V(ctx, "VerticalSpeed", 0.0);
+                double maxTwr = V(ctx, "MaxTWR", 1.0);
                 if (maxTwr < 0.05) maxTwr = 0.7;
 
                 double targetVs = target;
@@ -1668,7 +1679,7 @@ namespace SFSVizzyMod
                 prev = vs;
 
                 // 悬停油门要按当地重力算：TWR 是推力/质量，加速度是 TWR*9.8
-                double gravity = vars.ContainsKey("Gravity") ? vars["Gravity"] : 9.8;
+                double gravity = V(ctx, "Gravity", 9.8);
                 if (!(gravity > 0.0)) gravity = 9.8;
                 double ff = maxTwr > 0.05 ? (gravity / 9.8) / maxTwr : 0.0;
                 double u = ff + kp * err + ki * integral + kd * deriv;
@@ -1678,7 +1689,8 @@ namespace SFSVizzyMod
                 if (u > 0.001) r.throttle.throttleOn.Value = true;
 
                 // 每 2 秒打一次，低 TWR 时能看出是物理不够还是控制没输出
-                if (Time.time >= nextHoldLog)
+                // 制导用的短切片（0.4 秒那种）不打，否则一秒刷三行
+                if (duration >= 1.5f && Time.time >= nextHoldLog)
                 {
                     nextHoldLog = Time.time + 2f;
                     Print("HOLD t=" + (Time.time - (end - duration)).ToString("0.0")
@@ -1848,7 +1860,7 @@ namespace SFSVizzyMod
         // 写世界变量用的字典：每条协程一份，互不覆盖
         private Dictionary<string, double> CtxxVars(RunContext ctx)
         {
-            return ctx != null ? ctx.vars : vars;
+            return ctx != null ? ctx.vars : startupVars;
         }
 
         // 这条协程该控制哪枚火箭。没选过就跟着玩家走

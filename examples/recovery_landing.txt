@@ -54,10 +54,17 @@ func entry
 end
 
 func land
+  # MaxTWR only counts engines that are switched on, so light them first or the
+  # deceleration reads as zero and this gives up before it has even started
+  engine all on
+  throttle on
+  set throttle to 0.1
+  wait 0.5
+
   set a_net = MaxTWR * 9.8 - Gravity
-  log "rec: landing from agl={AltitudeAGL} vs={VerticalSpeed} twr={MaxTWR} decel={a_net}"
-  if a_net < 0.5
-    fail "rec: not enough thrust to stop (MaxTWR={MaxTWR}, gravity={Gravity})"
+  log "rec: landing from agl={AltitudeAGL} vs={VerticalSpeed} twr={MaxTWR} decel={a_net} fuel={Fuel}"
+  if a_net < 0.1
+    fail "rec: no thrust to land with (twr={MaxTWR}, gravity={Gravity}, fuel={Fuel})"
   end
 
   # sideways speed first, otherwise it tips over on touchdown
@@ -79,14 +86,19 @@ func land
   # thrust can still stop you before h_final, times a safety margin
   while AltitudeAGL > h_final
     set a_net = MaxTWR * 9.8 - Gravity
-    if a_net < 0.5
-      fail "rec: thrust lost at agl={AltitudeAGL}, nothing to land with"
+    if a_net < 0.1
+      fail "rec: thrust lost at agl={AltitudeAGL} (fuel={Fuel}), nothing to land with"
     end
     set h = AltitudeAGL - h_final
     if h < 1
       set h = 1
     end
     set v_safe = 0 - margin * sqrt(2 * a_net * h)
+
+    # already faster than the curve allows: say so, the burn will still try
+    if VerticalSpeed < v_safe * 1.2
+      log "rec: overspeed vs={VerticalSpeed} vs safe {v_safe}"
+    end
     # never ask for an absurd target, and never stop above the last metres
     set v_t = clamp(v_safe, 0 - 400, 0 - 2)
     hold vspeed v_t 0.4
