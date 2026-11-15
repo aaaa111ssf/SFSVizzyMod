@@ -1124,16 +1124,21 @@ namespace SFSVizzyMod
 
             bool on = !string.Equals(b.dir, "off", StringComparison.OrdinalIgnoreCase);
             string names = "";
+            int dry = 0;
             for (int i = 0; i < idx.Length; i++)
             {
                 EngineModule e = engines[idx[i]];
                 e.engineOn.Value = on;
                 string pn = PartNameOf(e);
                 if (pn.Length > 0) names += (names.Length > 0 ? ", " : "") + pn;
+                // 没油的发动机游戏会马上把它关回去，先说清楚
+                if (on && !WorldVars.EngineHasFuel(e)) dry++;
             }
 
             Print("ENGINE: " + (b.a ?? "all") + " -> " + (on ? "on" : "off") + " (" + idx.Length + ")"
                 + (names.Length > 0 ? " " + names : ""));
+
+            if (dry > 0) Print("ENGINE: " + dry + " of them have no fuel, the game will switch them back off");
 
             // 只打开开关不动油门，看着就像没反应
             if (on)

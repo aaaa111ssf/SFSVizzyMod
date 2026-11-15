@@ -17,7 +17,7 @@ namespace SFSVizzyMod
         }
 
         // 发动机能不能真喷：看燃料流量状态。没接油箱的（sources 为空）当它能喷
-        private static bool HasFuel(EngineModule e)
+        public static bool EngineHasFuel(EngineModule e)
         {
             try
             {
@@ -53,7 +53,7 @@ namespace SFSVizzyMod
                 EngineModule e = engines[i];
                 if (!e.engineOn.Value) continue;
                 enginesOn++;
-                if (!HasFuel(e)) continue;          // 干烧：推力按 0 算
+                if (!EngineHasFuel(e)) continue;     // 干烧：推力按 0 算
                 enginesLit++;
                 double t = e.thrust.Value;
                 available += t;
