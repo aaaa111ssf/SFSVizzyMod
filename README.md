@@ -114,6 +114,7 @@ Everything in `examples/` can be pasted straight into the CODE view:
 | `demo8_error_demo.txt` | Fails on purpose to show the red error bar |
 | `mechjeb.txt` | Six-mode autopilot: launch / circularize / apsides / land / chute / nav |
 | `mj_mission.txt` | Whole-mission autopilot: liftoff with auto staging, orbit, deorbit onto the map target, touchdown |
+| `guidance_ascent.txt` | Closed loop ascent guidance: pitch re-solved from the apoapsis error every cycle, throttled by dynamic pressure |
 | `landing.txt` | Hand written proportional landing, good for learning how the PID works |
 
 ### Gotchas
@@ -242,6 +243,7 @@ Spaceflight Simulator 1.6 的积木编程模组 按 F8 在浏览器里打开编�
 | `demo8_error_demo.txt` | 故意出错 看红色错误条 |
 | `mechjeb.txt` | 6 个模式的自动驾驶：发射 / 圆化 / 改拱点 / 降落 / 伞降 / 导航 |
 | `mj_mission.txt` | 整套任务自动驾驶：自动分级升空 入轨 反推落到地图目标 落地 |
+| `guidance_ascent.txt` | 闭环上升制导：每个周期按拱点误差重算俯仰 动态压超限自动收油门 |
 | `landing.txt` | 手写比例控制的降落 适合研究 PID 原理 |
 
 ### 几个坑

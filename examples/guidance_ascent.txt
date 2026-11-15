@@ -1,0 +1,70 @@
+# ===== closed loop ascent guidance =====
+# Instead of a fixed pitch table, the pitch angle is re-solved every cycle from
+# how far the apoapsis is from the target. The throttle also backs off when the
+# dynamic pressure gets high. Nothing here needs tuning per rocket mass, which
+# is the whole point: the loop absorbs it.
+#
+# This is the engineering cousin of the iterative guidance real rockets use.
+# Real IGM solves a two point boundary value problem in vector form every cycle;
+# we only have scalars, so it is a PD controller on the apoapsis error instead.
+
+on start
+  set targetAp = 100000     # orbit altitude to reach, m
+  set turnAlt = 42000       # altitude where the base pitch reaches 88 deg
+  set qLimit = 28000        # back off the throttle above this dynamic pressure
+  set gain = 0.0000012      # how hard the apoapsis error bends the pitch
+  set damp = 0.0000004      # damping, keeps it from swinging past the target
+  set bias = 0              # pitch correction accumulated by the loop
+  set prevErr = 0
+  set pitch = 0
+  set dt = 1                # cycle length, s
+  set tol = 2000
+
+  throttle on
+  set throttle to 1
+  wait until AltitudeAGL > 300
+  wait until LitEngines > 0
+
+  while Apoapsis < targetAp
+    # 1 stage when the current one runs dry, otherwise the loop just stalls
+    if LitEngines < 1
+      stage
+      wait 1.2
+      engine all on
+      wait 0.8
+      log "g: staged at {AltitudeAGL} m"
+    end
+
+    # 2 base pitch: follow altitude from straight up towards horizontal.
+    #   0 deg is up, 90 is horizontal, so this is open loop by itself
+    set base = 88 * clamp(AltitudeAGL / turnAlt, 0, 1)
+
+    # 3 feedback: too low an apoapsis means push more horizontal, and the
+    #   rate term stops it from overshooting when the error closes fast
+    set err = targetAp - Apoapsis
+    set errRate = (err - prevErr) / dt
+    set bias = clamp(bias + (gain * err - damp * errRate) * dt, 0 - 25, 25)
+    set prevErr = err
+
+    set pitch = clamp(base + bias, 0, 89)
+    turn to pitch in 0.4
+
+    # 4 don't ride full throttle through max Q, it just wastes fuel
+    if DynamicPressure > qLimit
+      set throttle to 0.75
+    else
+      set throttle to 1
+    end
+
+    wait dt
+  end
+
+  throttle off
+  log "g: ap={Apoapsis} m, bias={bias} deg, pitch={pitch} deg"
+
+  # the loop only ever reaches the apoapsis, the periapsis is still in the air
+  turn to 90 in 2
+  wait until TimeToApoapsis < 3
+  circularize tol
+  log "g: orbit ap={Apoapsis} pe={Periapsis}"
+end

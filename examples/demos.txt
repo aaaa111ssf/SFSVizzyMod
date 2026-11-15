@@ -76,6 +76,16 @@ demo10_two_vessels.txt      two vessels at once
   Note: variables are global, so the two halves must not use the same names
 
 --------------------------------------------------------------------
+guidance_ascent.txt   closed loop ascent guidance
+  Where: on the pad
+  Shows: no pitch table at all. Every cycle it reads the apoapsis error,
+         feeds it into a PD controller and re-solves the pitch angle, so a
+         heavy or light rocket both fly it without retuning. Throttle backs
+         off above a dynamic pressure limit instead of riding full power.
+  Watch: "g:" log lines at cutoff showing how much correction (bias) the
+         loop had to add; a well tuned run ends within a few degrees
+  Tune: gain (how hard it reacts), damp (overshoot), qLimit, turnAlt
+
 mj_mission.txt   whole-mission autopilot (the one to use now)
   Where: on the pad, and pick a map target if you want mode 1
   Modes: 1 whole trip (liftoff -> orbit -> deorbit -> touchdown)
